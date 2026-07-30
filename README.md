@@ -4,11 +4,26 @@ A Windows desktop application for OpenPGP key management, encryption, and decryp
 
 ## Features
 
-- **Encrypt / Decrypt** — single files or batches, with progress reporting and cancellation
-- **Key generation** — create new RSA key pairs with configurable size, identity, and passphrase
-- **Key management** — import, export, and delete keys; importing a private key automatically extracts its public key
+- **Encrypt / decrypt**: single files or batches, with progress reporting and cancellation
+- **Key generation**: Ed25519 with a Curve25519 encryption subkey, or RSA at 2048 or 4096 bits
+- **Key management**: import, export, and delete keys. Importing a private key automatically
+  extracts its public key
 
-Keys are stored locally under `%APPDATA%\PgpUtility\Keys\` with an `index.json` manifest.
+Keys are stored locally under `%APPDATA%\PgpUtility\Keys\` with an `index.json` manifest. Nothing
+is sent anywhere: there is no keyserver upload or fetch, by design.
+
+## Cryptography
+
+- Files are encrypted with **AES-256**, and that is not a setting.
+- Every message carries a **modification detection code**, and decryption verifies it before the
+  plaintext reaches its destination. A file that fails the check produces no output. This is what
+  stops an attacker who cannot read your plaintext from flipping chosen bits in it.
+- Keys interoperate with GnuPG. Verified against GnuPG 2.2 in both directions.
+- Passphrases are held as `char[]` and zeroed once used rather than left as strings for the
+  garbage collector. This is defence in depth: it shortens the window in which a passphrase sits
+  in memory. It is not protection against an attacker who can already read the process.
+
+This project has not been independently audited.
 
 ## Requirements
 

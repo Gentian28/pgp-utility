@@ -6,11 +6,24 @@ using PgpUtility.Services;
 
 namespace PgpUtility.ViewModels;
 
+/// <summary>
+/// One entry in the algorithm dropdown. Wraps the enum so the list can carry a label without the
+/// view having to know how to spell each algorithm.
+/// </summary>
+public sealed record AlgorithmChoice(PgpKeyAlgorithm Value, string Display);
+
 public partial class KeyGenerationViewModel : ViewModelBase
 {
     private readonly IPgpService _pgpService;
     private readonly IKeyStoreService _keyStoreService;
     private readonly Action<string> _addLog;
+
+    /// <summary>
+    /// Raised once the passphrase has been used and zeroed, so the view can empty its password
+    /// boxes. Without it the fields would still show dots for a passphrase this view model no
+    /// longer holds, and the next Generate would fail on an empty array.
+    /// </summary>
+    public event EventHandler? PassphraseCleared;
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(GenerateCommand))]
@@ -21,14 +34,18 @@ public partial class KeyGenerationViewModel : ViewModelBase
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(GenerateCommand))]
-    private string _passphrase = string.Empty;
+    private char[] _passphrase = Array.Empty<char>();
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(GenerateCommand))]
-    private string _confirmPassphrase = string.Empty;
+    private char[] _confirmPassphrase = Array.Empty<char>();
 
     [ObservableProperty]
-    private int _selectedKeySize = 2048;
+    [NotifyPropertyChangedFor(nameof(IsRsaSelected))]
+    private PgpKeyAlgorithm _selectedAlgorithm = PgpKeyAlgorithm.Ed25519;
+
+    [ObservableProperty]
+    private int _selectedKeySize = 4096;
 
     [ObservableProperty]
     private bool _hasExpiration;
@@ -45,6 +62,15 @@ public partial class KeyGenerationViewModel : ViewModelBase
     [ObservableProperty]
     private bool _keysGenerated;
 
+    public AlgorithmChoice[] Algorithms { get; } =
+    [
+        new(PgpKeyAlgorithm.Ed25519, "Ed25519 (recommended)"),
+        new(PgpKeyAlgorithm.Rsa, "RSA")
+    ];
+
+    /// <summary>Key size only means something for RSA; Ed25519's is fixed by the curve.</summary>
+    public bool IsRsaSelected => SelectedAlgorithm == PgpKeyAlgorithm.Rsa;
+
     public int[] KeySizes { get; } = [2048, 4096];
 
     public KeyGenerationViewModel(
@@ -57,10 +83,22 @@ public partial class KeyGenerationViewModel : ViewModelBase
         _addLog = addLog;
     }
 
+    // Zero whatever the field held before it is replaced, so a passphrase does not accumulate one
+    // abandoned copy per keystroke.
+    partial void OnPassphraseChanging(char[]? oldValue, char[] newValue) => ZeroIfReplaced(oldValue, newValue);
+
+    partial void OnConfirmPassphraseChanging(char[]? oldValue, char[] newValue) => ZeroIfReplaced(oldValue, newValue);
+
+    private static void ZeroIfReplaced(char[]? oldValue, char[] newValue)
+    {
+        if (oldValue is not null && !ReferenceEquals(oldValue, newValue))
+            Array.Clear(oldValue);
+    }
+
     private bool CanGenerate() =>
         !string.IsNullOrWhiteSpace(Name) &&
-        !string.IsNullOrWhiteSpace(Passphrase) &&
-        Passphrase == ConfirmPassphrase;
+        Passphrase.Length > 0 &&
+        Passphrase.AsSpan().SequenceEqual(ConfirmPassphrase);
 
     [RelayCommand(CanExecute = nameof(CanGenerate))]
     private async Task GenerateAsync()
@@ -80,6 +118,7 @@ public partial class KeyGenerationViewModel : ViewModelBase
                 Name = Name,
                 Email = Email,
                 Passphrase = Passphrase,
+                Algorithm = SelectedAlgorithm,
                 KeySize = SelectedKeySize,
                 ExpirationDate = HasExpiration ? ExpirationDate : null
             };
@@ -89,6 +128,10 @@ public partial class KeyGenerationViewModel : ViewModelBase
             GeneratedPrivateKey = privateKey;
             KeysGenerated = true;
             StatusMessage = "Key pair generated successfully.";
+
+            // Only on success. A failed attempt leaves the fields alone so the user can fix the
+            // name or the expiry date and try again without retyping.
+            ClearPassphrases();
         }
         catch (Exception ex)
         {
@@ -99,6 +142,13 @@ public partial class KeyGenerationViewModel : ViewModelBase
         {
             IsBusy = false;
         }
+    }
+
+    private void ClearPassphrases()
+    {
+        Passphrase = Array.Empty<char>();
+        ConfirmPassphrase = Array.Empty<char>();
+        PassphraseCleared?.Invoke(this, EventArgs.Empty);
     }
 
     [RelayCommand]

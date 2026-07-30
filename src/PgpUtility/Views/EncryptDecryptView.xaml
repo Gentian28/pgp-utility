@@ -114,12 +114,14 @@
                          Style="{StaticResource StandardTextBox}" />
             </DockPanel>
 
-            <!-- Options -->
+            <!-- Options. The integrity check used to be a checkbox here. It is not a choice any
+                 more: turning it off produced malleable ciphertext and nothing else. -->
             <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
                 <CheckBox Content="ASCII Armor" IsChecked="{Binding AsciiArmor}"
                           Margin="0,0,16,0" FontSize="13" />
-                <CheckBox Content="Integrity Check" IsChecked="{Binding IntegrityCheck}"
-                          FontSize="13" />
+                <TextBlock Text="AES-256, integrity protected"
+                           Foreground="{StaticResource TextSecondaryBrush}" FontSize="12"
+                           VerticalAlignment="Center" />
             </StackPanel>
 
             <!-- Progress -->

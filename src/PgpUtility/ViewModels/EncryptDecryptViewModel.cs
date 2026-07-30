@@ -31,7 +31,7 @@ public partial class EncryptDecryptViewModel : ViewModelBase
     private bool _useKeyFromStore = true;
 
     [ObservableProperty]
-    private string _passphrase = string.Empty;
+    private char[] _passphrase = Array.Empty<char>();
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(ProcessCommand))]
@@ -41,9 +41,6 @@ public partial class EncryptDecryptViewModel : ViewModelBase
     private bool _asciiArmor = true;
 
     [ObservableProperty]
-    private bool _integrityCheck = true;
-
-    [ObservableProperty]
     private double _progressValue;
 
     [ObservableProperty]
@@ -51,6 +48,12 @@ public partial class EncryptDecryptViewModel : ViewModelBase
 
     public ObservableCollection<BatchFileItem> Files { get; } = new();
     public ObservableCollection<PgpKeyInfo> AvailableKeys { get; } = new();
+
+    /// <summary>
+    /// Raised once the passphrase has been used and zeroed, so the view can empty its password
+    /// box rather than showing dots for a passphrase this view model no longer holds.
+    /// </summary>
+    public event EventHandler? PassphraseCleared;
 
     public EncryptDecryptViewModel(
         IPgpService pgpService,
@@ -63,6 +66,14 @@ public partial class EncryptDecryptViewModel : ViewModelBase
         _fileDialogService = fileDialogService;
         _addLog = addLog;
         RefreshKeys();
+    }
+
+    // Zero whatever the field held before it is replaced, so a passphrase does not accumulate one
+    // abandoned copy per keystroke.
+    partial void OnPassphraseChanging(char[]? oldValue, char[] newValue)
+    {
+        if (oldValue is not null && !ReferenceEquals(oldValue, newValue))
+            Array.Clear(oldValue);
     }
 
     public void RefreshKeys()
@@ -194,7 +205,7 @@ public partial class EncryptDecryptViewModel : ViewModelBase
                 {
                     result = await _pgpService.EncryptFileAsync(
                         file.FilePath, outputPath, keySource, isFilePath,
-                        AsciiArmor, IntegrityCheck, progress, _cts.Token);
+                        AsciiArmor, progress, _cts.Token);
                 }
                 else
                 {
@@ -206,8 +217,14 @@ public partial class EncryptDecryptViewModel : ViewModelBase
                 file.IsProcessing = false;
                 if (result.Success)
                 {
-                    file.Status = "Completed";
+                    // A message with no integrity check still decrypted, so this is not a failure,
+                    // but it is not the same as a verified one either and the row should not claim
+                    // it is.
+                    file.Status = result.Warning == null ? "Completed" : "Completed, unverified";
+                    file.ErrorMessage = result.Warning;
                     file.IsCompleted = true;
+                    if (result.Warning != null)
+                        _addLog(result.Warning);
                 }
                 else
                 {
@@ -231,6 +248,15 @@ public partial class EncryptDecryptViewModel : ViewModelBase
         }
         finally
         {
+            // Zeroed at the end of every run rather than held for the session. The cost is
+            // retyping it for the next batch; the gain is that it is not sitting in memory
+            // for however long the app stays open.
+            if (!IsEncryptMode)
+            {
+                Passphrase = Array.Empty<char>();
+                PassphraseCleared?.Invoke(this, EventArgs.Empty);
+            }
+
             IsBusy = false;
             _cts?.Dispose();
             _cts = null;

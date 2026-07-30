@@ -47,6 +47,6 @@ Desktop.ini
 $RECYCLE.BIN/
 .DS_Store
 
-# Local tooling / editor assistant config
-CLAUDE.md
-.claude/
+# Claude Code personal settings. ".local." is per-machine by convention.
+# CLAUDE.md itself is committed: it is project guidance, not a personal setting.
+.claude/settings.local.json
