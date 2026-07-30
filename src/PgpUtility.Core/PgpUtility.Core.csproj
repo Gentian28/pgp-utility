@@ -1,0 +1,17 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- Assembly name and namespace deliberately differ. The assembly is PgpUtility.Core so the
+         layering is visible in the file list; the namespaces stay PgpUtility.Models and
+         PgpUtility.Services so extracting this project changed no using directives. -->
+    <RootNamespace>PgpUtility</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="BouncyCastle.Cryptography" />
+    <!-- BatchFileItem is an ObservableObject. The MVVM toolkit has no UI dependency of its own,
+         so this does not stop the project building or its tests running on Linux and macOS. -->
+    <PackageReference Include="CommunityToolkit.Mvvm" />
+  </ItemGroup>
+
+</Project>

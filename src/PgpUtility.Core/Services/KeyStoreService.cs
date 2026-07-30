@@ -16,10 +16,15 @@ public class KeyStoreService : IKeyStoreService
         WriteIndented = true
     };
 
-    public KeyStoreService(IPgpService pgpService)
+    /// <param name="keysDirectory">
+    /// Where the store lives. Defaults to the per-user application data location. Overridden by
+    /// tests so a run never touches the developer's real key store, which is the sort of thing
+    /// that is only noticed after it has already happened.
+    /// </param>
+    public KeyStoreService(IPgpService pgpService, string? keysDirectory = null)
     {
         _pgpService = pgpService;
-        _keysDirectory = Path.Combine(
+        _keysDirectory = keysDirectory ?? Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
             "PgpUtility", "Keys");
         _indexPath = Path.Combine(_keysDirectory, "index.json");

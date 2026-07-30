@@ -2,15 +2,18 @@
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
+    <!-- Overrides Directory.Build.props for as long as this project is WPF. Everything it
+         references stays on plain net8.0. -->
     <TargetFramework>net8.0-windows</TargetFramework>
-    <Nullable>enable</Nullable>
-    <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="BouncyCastle.Cryptography" Version="2.6.2" />
-    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
+    <PackageReference Include="CommunityToolkit.Mvvm" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\PgpUtility.Core\PgpUtility.Core.csproj" />
   </ItemGroup>
 
 </Project>

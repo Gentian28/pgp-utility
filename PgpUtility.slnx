@@ -1,5 +1,7 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/PgpUtility.Core/PgpUtility.Core.csproj" />
     <Project Path="src/PgpUtility/PgpUtility.csproj" />
+    <Project Path="src/PgpUtility.Tests/PgpUtility.Tests.csproj" />
   </Folder>
 </Solution>

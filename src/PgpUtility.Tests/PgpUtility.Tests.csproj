@@ -1,0 +1,27 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" />
+    <PackageReference Include="AwesomeAssertions" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="Xunit.SkippableFact" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+    <Using Include="AwesomeAssertions" />
+  </ItemGroup>
+
+  <!-- Only PgpUtility.Core. The App project is a WinExe on net8.0-windows, so referencing it
+       would pin this suite to Windows and defeat the point of running it on three platforms. -->
+  <ItemGroup>
+    <ProjectReference Include="..\PgpUtility.Core\PgpUtility.Core.csproj" />
+  </ItemGroup>
+
+</Project>

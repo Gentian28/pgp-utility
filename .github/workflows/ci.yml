@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    name: build & test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      # The interoperability tests skip when gpg is missing, so without this the suite would go
+      # green having proved nothing about the one claim that is hardest to get right. The runner
+      # image does not carry gpg on PATH by default.
+      - name: Install GnuPG
+        run: choco install gnupg -y --no-progress
+
+      - name: Restore
+        run: dotnet restore PgpUtility.slnx
+
+      - name: Build
+        run: dotnet build PgpUtility.slnx --configuration Release --no-restore
+
+      # PGPUTILITY_REQUIRE_GPG turns a skipped interoperability test into a failure. gpg is
+      # installed above, so a skip here means the install or the agent broke, and that must not
+      # look like a pass.
+      - name: Test
+        env:
+          PGPUTILITY_REQUIRE_GPG: "1"
+        run: dotnet test PgpUtility.slnx --configuration Release --no-build --verbosity normal --collect:"XPlat Code Coverage"
+
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          # Must be unique per matrix leg: upload-artifact@v4 rejects duplicate names.
+          name: coverage-${{ matrix.os }}
+          path: "**/TestResults/**/coverage.cobertura.xml"
+          if-no-files-found: ignore
+
+  vulnerable-packages:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      # Fails the job if any package has a known advisory. For a crypto tool a vulnerable
+      # dependency is not a maintenance chore, so this is a gate rather than a report.
+      - name: Check for vulnerable packages
+        run: |
+          dotnet restore PgpUtility.slnx
+          dotnet list PgpUtility.slnx package --vulnerable --include-transitive 2>&1 | tee vuln.txt
+          if grep -q "has the following vulnerable packages" vuln.txt; then
+            echo "::error::Vulnerable packages found"
+            exit 1
+          fi
