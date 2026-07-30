@@ -1,10 +1,15 @@
 namespace PgpUtility.Models;
 
-public class OperationResult
+public record OperationResult
 {
     public bool Success { get; set; }
     public string Message { get; set; } = string.Empty;
     public string? OutputPath { get; set; }
+
+    /// <summary>
+    /// The result itself, for the operations that produce text rather than a file.
+    /// </summary>
+    public string? Payload { get; init; }
 
     /// <summary>
     /// Set when the operation completed but something about it is worth telling the user, the one

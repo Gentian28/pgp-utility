@@ -62,6 +62,9 @@ public partial class KeyGenerationViewModel : ViewModelBase
     private string _generatedPrivateKey = string.Empty;
 
     [ObservableProperty]
+    private string _generatedRevocationCertificate = string.Empty;
+
+    [ObservableProperty]
     private bool _keysGenerated;
 
     public AlgorithmChoice[] Algorithms { get; } =
@@ -121,9 +124,10 @@ public partial class KeyGenerationViewModel : ViewModelBase
                 ExpirationDate = HasExpiration ? ExpirationDate.UtcDateTime : null
             };
 
-            var (publicKey, privateKey) = await _pgpService.GenerateKeyPairAsync(options, progress);
-            GeneratedPublicKey = publicKey;
-            GeneratedPrivateKey = privateKey;
+            GeneratedKeyPair generated = await _pgpService.GenerateKeyPairAsync(options, progress);
+            GeneratedPublicKey = generated.PublicKey;
+            GeneratedPrivateKey = generated.PrivateKey;
+            GeneratedRevocationCertificate = generated.RevocationCertificate;
             KeysGenerated = true;
             StatusMessage = "Key pair generated successfully.";
 
@@ -166,6 +170,14 @@ public partial class KeyGenerationViewModel : ViewModelBase
     }
 
     [RelayCommand]
+    private async Task CopyRevocationCertificateAsync()
+    {
+        if (string.IsNullOrEmpty(GeneratedRevocationCertificate)) return;
+        await _clipboard.SetTextAsync(GeneratedRevocationCertificate);
+        StatusMessage = "Revocation certificate copied to the clipboard.";
+    }
+
+    [RelayCommand]
     private async Task SaveKeysAsync()
     {
         if (!KeysGenerated) return;
@@ -180,15 +192,19 @@ public partial class KeyGenerationViewModel : ViewModelBase
 
             string publicPath = Path.Combine(folder, $"{safeName}_public.asc");
             string privatePath = Path.Combine(folder, $"{safeName}_private.asc");
+            string revocationPath = Path.Combine(folder, $"{safeName}_revocation.asc");
 
             await File.WriteAllTextAsync(publicPath, GeneratedPublicKey);
             await File.WriteAllTextAsync(privatePath, GeneratedPrivateKey);
+            await File.WriteAllTextAsync(revocationPath, GeneratedRevocationCertificate);
 
-            // The private key is landing in a folder the user chose, which on Unix is very likely
-            // to be group and world readable by default.
+            // Both of these are landing in a folder the user chose, which on Unix is very likely
+            // to be group and world readable by default. The revocation certificate is not secret
+            // in the way the private key is, but anyone holding it can retire the key.
             KeyStoreLocation.RestrictFile(privatePath);
+            KeyStoreLocation.RestrictFile(revocationPath);
 
-            StatusMessage = "Keys saved to disk.";
+            StatusMessage = "Keys and revocation certificate saved to disk.";
             _addLog(StatusMessage);
         }
         catch (Exception ex)

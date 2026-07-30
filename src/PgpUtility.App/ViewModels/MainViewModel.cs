@@ -20,25 +20,35 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty]
     private bool _isLogPanelVisible;
 
+    // Every tab reads the same key store, so a key added on one has to appear on the others
+    // without a restart. Refreshing on tab change is cheap and needs no change notification
+    // plumbed through the store.
     partial void OnSelectedTabIndexChanged(int value)
     {
         EncryptDecryptVm.RefreshKeys();
+        SignVerifyVm.RefreshKeys();
+        TextVm.RefreshKeys();
         KeyManagementVm.RefreshKeys();
     }
 
     public ObservableCollection<string> LogEntries { get; } = new();
 
     public EncryptDecryptViewModel EncryptDecryptVm { get; }
+    public SignVerifyViewModel SignVerifyVm { get; }
+    public TextViewModel TextVm { get; }
     public KeyManagementViewModel KeyManagementVm { get; }
     public KeyGenerationViewModel KeyGenerationVm { get; }
 
     public MainViewModel(
         IPgpService pgpService,
+        IPgpSignatureService signatures,
         IKeyStoreService keyStoreService,
         IFilePickerService filePicker,
         IClipboardService clipboard)
     {
         EncryptDecryptVm = new EncryptDecryptViewModel(pgpService, keyStoreService, filePicker, AddLog);
+        SignVerifyVm = new SignVerifyViewModel(signatures, keyStoreService, filePicker, AddLog);
+        TextVm = new TextViewModel(pgpService, signatures, keyStoreService, clipboard, AddLog);
         KeyManagementVm = new KeyManagementViewModel(keyStoreService, pgpService, filePicker, clipboard, AddLog);
         KeyGenerationVm = new KeyGenerationViewModel(pgpService, keyStoreService, filePicker, clipboard, AddLog);
     }

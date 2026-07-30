@@ -93,7 +93,7 @@
       <!-- Passphrase, decrypt only -->
       <StackPanel Spacing="4" IsVisible="{Binding !IsEncryptMode}">
         <TextBlock Text="Passphrase" Classes="fieldLabel" />
-        <TextBox x:Name="PassphraseBox" PasswordChar="●" MaxWidth="420"
+        <TextBox x:Name="PassphraseBox" PasswordChar="●" Width="420"
                  HorizontalAlignment="Left" Watermark="Passphrase for the private key" />
         <TextBlock Classes="hint"
                    Text="Cleared once the batch finishes, so you will be asked again next time." />

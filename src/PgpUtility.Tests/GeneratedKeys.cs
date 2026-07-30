@@ -27,16 +27,21 @@ public sealed class GeneratedKeys
 
     public IPgpService Service { get; } = new PgpService();
 
-    public string Ed25519Public { get; }
-    public string Ed25519Private { get; }
-    public string RsaPublic { get; }
-    public string RsaPrivate { get; }
+    public IPgpSignatureService Signatures { get; } = new PgpSignatureService();
+
+    public GeneratedKeyPair Ed25519 { get; }
+    public GeneratedKeyPair Rsa { get; }
+
+    public string Ed25519Public => Ed25519.PublicKey;
+    public string Ed25519Private => Ed25519.PrivateKey;
+    public string RsaPublic => Rsa.PublicKey;
+    public string RsaPrivate => Rsa.PrivateKey;
 
     public GeneratedKeys()
     {
         var service = Service;
 
-        (Ed25519Public, Ed25519Private) = service.GenerateKeyPairAsync(new KeyGenerationOptions
+        Ed25519 = service.GenerateKeyPairAsync(new KeyGenerationOptions
         {
             Name = "Ed Tester",
             Email = "ed@example.com",
@@ -44,7 +49,7 @@ public sealed class GeneratedKeys
             Algorithm = PgpKeyAlgorithm.Ed25519
         }).GetAwaiter().GetResult();
 
-        (RsaPublic, RsaPrivate) = service.GenerateKeyPairAsync(new KeyGenerationOptions
+        Rsa = service.GenerateKeyPairAsync(new KeyGenerationOptions
         {
             Name = "Rsa Tester",
             Email = "rsa@example.com",

@@ -1,4 +1,5 @@
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Interactivity;
 using PgpUtility.App.ViewModels;
 
@@ -11,6 +12,30 @@ public partial class EncryptDecryptView : UserControl
         InitializeComponent();
         PassphraseBox.TextChanged += OnPassphraseChanged;
         DataContextChanged += OnDataContextChanged;
+
+        // Registered on the whole view rather than just the file list. Aiming for a target is
+        // work, and there is nothing else here a file drop could sensibly mean.
+        AddHandler(DragDrop.DragOverEvent, OnDragOver);
+        AddHandler(DragDrop.DropEvent, OnDrop);
+        DragDrop.SetAllowDrop(this, true);
+    }
+
+    private static void OnDragOver(object? sender, DragEventArgs e)
+    {
+        e.DragEffects = DroppedFiles.HasFiles(e) ? DragDropEffects.Copy : DragDropEffects.None;
+        e.Handled = true;
+    }
+
+    private void OnDrop(object? sender, DragEventArgs e)
+    {
+        if (DataContext is not EncryptDecryptViewModel vm) return;
+
+        var paths = DroppedFiles.PathsFrom(e);
+        if (paths.Count > 0)
+        {
+            vm.AddFilePaths(paths);
+            e.Handled = true;
+        }
     }
 
     private EncryptDecryptViewModel? _subscribed;

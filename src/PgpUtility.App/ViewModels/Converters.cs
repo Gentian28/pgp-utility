@@ -1,5 +1,6 @@
 using System.Globalization;
 using Avalonia.Data.Converters;
+using Avalonia.Media;
 
 namespace PgpUtility.App.ViewModels;
 
@@ -54,4 +55,22 @@ public static class Converters
     public static readonly IValueConverter ShortDate =
         new FuncValueConverter<DateTime, string>(static value =>
             value.ToLocalTime().ToString("d MMM yyyy", CultureInfo.CurrentCulture));
+
+    public static readonly IValueConverter SignOrVerify =
+        new FuncValueConverter<bool, string>(isSign => isSign ? "Sign" : "Verify");
+
+    public static readonly IValueConverter SignOrVerifyKeyLabel =
+        new FuncValueConverter<bool, string>(isSign => isSign ? "Sign with" : "Expected signer");
+
+    /// <summary>
+    /// The one line someone actually reads after verifying, so it says the answer rather than
+    /// restating the question.
+    /// </summary>
+    public static readonly IValueConverter SignatureHeadline =
+        new FuncValueConverter<bool, string>(valid => valid ? "Signature is good" : "Signature is NOT valid");
+
+    public static readonly IValueConverter SignatureBrush =
+        new FuncValueConverter<bool, IBrush>(static valid => valid
+            ? new SolidColorBrush(Color.FromRgb(0x4A, 0xDE, 0x80))
+            : new SolidColorBrush(Color.FromRgb(0xF8, 0x71, 0x71)));
 }

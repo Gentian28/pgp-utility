@@ -1,0 +1,95 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:PgpUtility.App.ViewModels"
+             xmlns:models="using:PgpUtility.Models"
+             mc:Ignorable="d"
+             x:Class="PgpUtility.App.Views.SignVerifyView"
+             x:DataType="vm:SignVerifyViewModel">
+
+  <ScrollViewer Padding="16">
+    <StackPanel Spacing="14" MaxWidth="820">
+
+      <StackPanel Orientation="Horizontal" Spacing="16">
+        <RadioButton Content="Sign" GroupName="SignMode" IsChecked="{Binding IsSignMode}" />
+        <RadioButton Content="Verify" GroupName="SignMode" IsChecked="{Binding !IsSignMode}" />
+      </StackPanel>
+
+      <TextBlock Classes="hint" MaxWidth="640"
+                 Text="A signature proves who produced a file. It is separate from encryption: an encrypted file with no signature says nothing about who sent it. The signature is written beside the file and the file itself is left untouched." />
+
+      <StackPanel Spacing="4">
+        <TextBlock Text="File" Classes="fieldLabel" />
+        <DockPanel>
+          <Button DockPanel.Dock="Right" Content="Browse..." Margin="8,0,0,0"
+                  Command="{Binding BrowseFileCommand}" />
+          <TextBox Text="{Binding FilePath}" Watermark="Drop a file here, or browse" />
+        </DockPanel>
+      </StackPanel>
+
+      <StackPanel Spacing="4" IsVisible="{Binding IsVerifyMode}">
+        <TextBlock Text="Signature" Classes="fieldLabel" />
+        <DockPanel>
+          <Button DockPanel.Dock="Right" Content="Browse..." Margin="8,0,0,0"
+                  Command="{Binding BrowseSignatureCommand}" />
+          <TextBox Text="{Binding SignaturePath}" Watermark="The .sig or .asc file beside it" />
+        </DockPanel>
+      </StackPanel>
+
+      <StackPanel Spacing="4">
+        <TextBlock Classes="fieldLabel"
+                   Text="{Binding IsSignMode, Converter={x:Static vm:Converters.SignOrVerifyKeyLabel}}" />
+        <ComboBox ItemsSource="{Binding AvailableKeys}"
+                  SelectedValue="{Binding SelectedKeyId}"
+                  SelectedValueBinding="{Binding KeyId, x:DataType=models:PgpKeyInfo}"
+                  HorizontalAlignment="Stretch">
+          <ComboBox.ItemTemplate>
+            <DataTemplate x:DataType="models:PgpKeyInfo">
+              <TextBlock>
+                <Run Text="{Binding UserId}" />
+                <Run Text="{Binding KeyId, StringFormat=' ({0})'}"
+                     Foreground="{DynamicResource MutedTextBrush}" />
+              </TextBlock>
+            </DataTemplate>
+          </ComboBox.ItemTemplate>
+        </ComboBox>
+        <TextBlock Classes="hint" IsVisible="{Binding IsSignMode}"
+                   Text="Only keys with a secret half are listed: signing needs your private key." />
+      </StackPanel>
+
+      <StackPanel Spacing="4" IsVisible="{Binding IsSignMode}">
+        <TextBlock Text="Passphrase" Classes="fieldLabel" />
+        <TextBox x:Name="PassphraseBox" PasswordChar="●" Width="420" HorizontalAlignment="Left" />
+      </StackPanel>
+
+      <CheckBox Content="ASCII armor" IsChecked="{Binding AsciiArmor}" IsVisible="{Binding IsSignMode}" />
+
+      <StackPanel Orientation="Horizontal" Spacing="8">
+        <Button Classes="Primary" Command="{Binding RunCommand}" IsEnabled="{Binding !IsBusy}"
+                Content="{Binding IsSignMode, Converter={x:Static vm:Converters.SignOrVerify}}" />
+      </StackPanel>
+
+      <!-- Verdict. Deliberately loud: a good signature and a bad one must not be a subtle
+           difference in a status line somebody skims past. -->
+      <Border Classes="panel" Padding="12" IsVisible="{Binding HasResult}">
+        <StackPanel Spacing="6" DataContext="{Binding Result}" x:DataType="models:SignatureVerification">
+          <TextBlock FontWeight="SemiBold" FontSize="14"
+                     Text="{Binding IsValid, Converter={x:Static vm:Converters.SignatureHeadline}}"
+                     Foreground="{Binding IsValid, Converter={x:Static vm:Converters.SignatureBrush}}" />
+          <TextBlock Text="{Binding Message}" TextWrapping="Wrap" FontSize="12" />
+          <TextBlock Classes="warning" Text="{Binding Caveat}" IsVisible="{Binding Caveat, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+          <TextBlock Classes="hint" IsVisible="{Binding IsValid}">
+            <Run Text="Signed" />
+            <Run Text="{Binding SignedAt}" />
+          </TextBlock>
+          <TextBlock Classes="hint" IsVisible="{Binding IsValid}" TextWrapping="Wrap"
+                     Text="This proves the file has not changed since it was signed by that key. It does not prove the key belongs to who you think: check the fingerprint on the Keys tab for that." />
+        </StackPanel>
+      </Border>
+
+      <TextBlock Text="{Binding StatusMessage}" Classes="hint" TextWrapping="Wrap" />
+
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>

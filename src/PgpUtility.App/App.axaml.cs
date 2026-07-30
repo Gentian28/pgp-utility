@@ -33,6 +33,7 @@ public partial class App : Application
 
             window.DataContext = new MainViewModel(
                 pgpService,
+                new PgpSignatureService(),
                 keyStore,
                 new StorageFilePickerService(TopLevel),
                 new ClipboardService(TopLevel));

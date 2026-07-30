@@ -49,13 +49,22 @@
     </Border>
 
     <TabControl SelectedIndex="{Binding SelectedTabIndex}" Padding="0">
-      <TabItem Header="Encrypt / Decrypt">
+      <!-- AutomationProperties.Name on every tab. Without it each one reports its content's type
+           name to a screen reader, so the tab strip announces as "PgpUtility.App.Views.TextView"
+           rather than "Text". -->
+      <TabItem Header="Files" AutomationProperties.Name="Files">
         <views:EncryptDecryptView DataContext="{Binding EncryptDecryptVm}" />
       </TabItem>
-      <TabItem Header="Keys">
+      <TabItem Header="Text" AutomationProperties.Name="Text">
+        <views:TextView DataContext="{Binding TextVm}" />
+      </TabItem>
+      <TabItem Header="Sign / Verify" AutomationProperties.Name="Sign and verify">
+        <views:SignVerifyView DataContext="{Binding SignVerifyVm}" />
+      </TabItem>
+      <TabItem Header="Keys" AutomationProperties.Name="Keys">
         <views:KeyManagementView DataContext="{Binding KeyManagementVm}" />
       </TabItem>
-      <TabItem Header="Generate">
+      <TabItem Header="Generate" AutomationProperties.Name="Generate">
         <views:KeyGenerationView DataContext="{Binding KeyGenerationVm}" />
       </TabItem>
     </TabControl>

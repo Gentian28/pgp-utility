@@ -86,8 +86,20 @@
                      Text="Never share this. Anyone holding it and the passphrase can read everything sent to you." />
         </StackPanel>
 
+        <StackPanel Spacing="4">
+          <DockPanel>
+            <Button DockPanel.Dock="Right" Content="Copy"
+                    Command="{Binding CopyRevocationCertificateCommand}" />
+            <TextBlock Text="Revocation certificate" Classes="sectionHeader" VerticalAlignment="Center" />
+          </DockPanel>
+          <TextBox Classes="keyBlock" MaxHeight="110"
+                   Text="{Binding GeneratedRevocationCertificate, Mode=OneWay}" />
+          <TextBlock Classes="warning" MaxWidth="560"
+                     Text="Store this somewhere separate from the key itself, ideally offline. Publishing it permanently retires the key, which is what you want if you ever lose the private key or the passphrase. It cannot be made later, because making one needs the very things you would have lost. Anyone who holds it can retire your key." />
+        </StackPanel>
+
         <StackPanel Orientation="Horizontal" Spacing="8">
-          <Button Content="Save to disk..." Command="{Binding SaveKeysCommand}" />
+          <Button Content="Save all to disk..." Command="{Binding SaveKeysCommand}" />
           <Button Content="Add to key store" Classes="Primary" Command="{Binding ImportToStoreCommand}" />
         </StackPanel>
 

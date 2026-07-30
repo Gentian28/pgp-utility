@@ -125,7 +125,7 @@ public class PgpService : IPgpService
         }, cancellationToken);
     }
 
-    public async Task<(string PublicKey, string PrivateKey)> GenerateKeyPairAsync(
+    public async Task<GeneratedKeyPair> GenerateKeyPairAsync(
         KeyGenerationOptions options,
         IProgress<string>? progress = null,
         CancellationToken cancellationToken = default)
@@ -166,14 +166,66 @@ public class PgpService : IPgpService
                 string publicKey = Armor(publicRing.Encode);
                 string privateKey = Armor(secretRing.Encode);
 
+                // Made now, while the passphrase is still in hand. Producing one later needs both
+                // the private key and the passphrase, and losing either is the main reason anyone
+                // ever needs to revoke.
+                progress?.Report("Writing revocation certificate...");
+                string revocation = CreateRevocationCertificate(secretRing, passphrase);
+
                 progress?.Report("Key pair generated successfully.");
-                return (publicKey, privateKey);
+                return new GeneratedKeyPair(publicKey, privateKey, revocation);
             }, cancellationToken);
         }
         finally
         {
             Array.Clear(passphrase);
         }
+    }
+
+    public string CreateRevocationCertificate(string privateKeySource, bool isFilePath, char[] passphrase)
+    {
+        using Stream keyIn = OpenKeySource(privateKeySource, isFilePath);
+        var bundle = new PgpSecretKeyRingBundle(PgpUtilities.GetDecoderStream(keyIn));
+
+        PgpSecretKeyRing ring = bundle.GetKeyRings().Cast<PgpSecretKeyRing>().FirstOrDefault()
+            ?? throw new ArgumentException("No secret key found in key data.");
+
+        return CreateRevocationCertificate(ring, passphrase);
+    }
+
+    private static string CreateRevocationCertificate(PgpSecretKeyRing ring, char[] passphrase)
+    {
+        // A revocation always comes from the master key: it is the master's own statement that
+        // the whole key is retired. Signing it with a subkey would produce something no
+        // implementation would honour.
+        PgpSecretKey masterKey = ring.GetSecretKeys().Cast<PgpSecretKey>().First(k => k.IsMasterKey);
+        PgpPrivateKey privateKey = ExtractPrivateKey(masterKey, passphrase);
+
+        var signatureGenerator = new PgpSignatureGenerator(
+            masterKey.PublicKey.Algorithm, HashAlgorithmTag.Sha256);
+        signatureGenerator.InitSign(PgpSignature.KeyRevocation, privateKey);
+
+        var packets = new PgpSignatureSubpacketGenerator();
+        packets.SetRevocationReason(false, RevocationReasonTag.NoReason,
+            "Revocation certificate generated when the key was created.");
+        signatureGenerator.SetHashedSubpackets(packets.Generate());
+
+        PgpSignature revocation = signatureGenerator.GenerateCertification(masterKey.PublicKey);
+
+        string armored = Armor(
+            revocation.Encode,
+            headers: new[] { ("Comment", "This is a revocation certificate for the key above.") });
+
+        // BouncyCastle labels the armor from the packet type, so a bare signature comes out as
+        // "PGP SIGNATURE". GnuPG refuses to import that: it reports "no valid OpenPGP data found"
+        // and the key stays live. Relabelled to what gpg itself writes, which it then accepts and
+        // acts on. Only the two label lines change; the base64 body and its CRC are untouched,
+        // because the label is a hint about what the block contains, not part of the data.
+        // Verified against GnuPG 2.2.41, which reports "new key revocations: 1" and moves the key
+        // to validity "r".
+        return armored
+            .Replace("BEGIN PGP SIGNATURE", "BEGIN PGP PUBLIC KEY BLOCK", StringComparison.Ordinal)
+            .Replace("END PGP SIGNATURE", "END PGP PUBLIC KEY BLOCK", StringComparison.Ordinal);
     }
 
     public PgpKeyInfo ReadPublicKeyInfo(string keySource, bool isFilePath)
@@ -375,9 +427,90 @@ public class PgpService : IPgpService
             packets.SetKeyExpirationTime(false, seconds);
     }
 
+    // --- Text ---
+
+    public async Task<OperationResult> EncryptTextAsync(
+        string text,
+        string publicKeySource,
+        bool isFilePath,
+        CancellationToken cancellationToken = default)
+    {
+        return await Task.Run(() =>
+        {
+            try
+            {
+                PgpPublicKey encKey = isFilePath
+                    ? ReadPublicKeyFromFile(publicKeySource)
+                    : ReadPublicKeyFromString(publicKeySource);
+
+                using var plaintext = new MemoryStream(Encoding.UTF8.GetBytes(text));
+                using var output = new MemoryStream();
+
+                // Always armored. A text message exists to be pasted into something that only
+                // carries text, so raw binary would be useless here.
+                using (var armored = new ArmoredOutputStream(output))
+                {
+                    EncryptCore(plaintext, "message.txt", DateTime.UtcNow, armored, encKey);
+                }
+
+                return OperationResult.Succeeded(
+                    "Text encrypted.", null)
+                    with { Payload = Encoding.UTF8.GetString(output.ToArray()) };
+            }
+            catch (Exception ex)
+            {
+                return OperationResult.Failed($"Encryption failed: {ex.Message}");
+            }
+        }, cancellationToken);
+    }
+
+    public async Task<OperationResult> DecryptTextAsync(
+        string armoredText,
+        string privateKeySource,
+        bool isFilePath,
+        char[] passphrase,
+        CancellationToken cancellationToken = default)
+    {
+        return await Task.Run(() =>
+        {
+            try
+            {
+                using var input = new MemoryStream(Encoding.UTF8.GetBytes(armoredText));
+                using Stream keyIn = OpenKeySource(privateKeySource, isFilePath);
+                using var output = new MemoryStream();
+
+                bool integrityProtected = DecryptCore(input, keyIn, passphrase, output);
+
+                return OperationResult.Succeeded(
+                    "Text decrypted.",
+                    null,
+                    integrityProtected
+                        ? null
+                        : "This message carried no integrity check, so there is no way to tell whether it was altered after it was encrypted.")
+                    with { Payload = Encoding.UTF8.GetString(output.ToArray()) };
+            }
+            catch (Exception ex)
+            {
+                return OperationResult.Failed($"Decryption failed: {ex.Message}");
+            }
+        }, cancellationToken);
+    }
+
     // --- Encryption and decryption ---
 
     private static void Encrypt(string inputFilePath, Stream outputStream, PgpPublicKey encKey)
+    {
+        using Stream input = File.OpenRead(inputFilePath);
+        var info = new FileInfo(inputFilePath);
+        EncryptCore(input, info.Name, info.LastWriteTimeUtc, outputStream, encKey);
+    }
+
+    /// <summary>
+    /// The one place a message is built. File and text mode both come through here so they cannot
+    /// drift apart on cipher, compression or integrity protection.
+    /// </summary>
+    private static void EncryptCore(
+        Stream input, string fileName, DateTime modificationTime, Stream outputStream, PgpPublicKey encKey)
     {
         // withIntegrityPacket is fixed at true and is not a caller choice. An OpenPGP message
         // without a modification detection code is malleable: an attacker who cannot read the
@@ -388,7 +521,12 @@ public class PgpService : IPgpService
         using Stream encryptedOut = encGen.Open(outputStream, new byte[BufferSize]);
         var compGen = new PgpCompressedDataGenerator(CompressionAlgorithmTag.Zip);
         using Stream compressedOut = compGen.Open(encryptedOut);
-        PgpUtilities.WriteFileToLiteralData(compressedOut, PgpLiteralData.Binary, new FileInfo(inputFilePath), new byte[BufferSize]);
+
+        var literalGen = new PgpLiteralDataGenerator();
+        using Stream literalOut = literalGen.Open(
+            compressedOut, PgpLiteralData.Binary, fileName, modificationTime, new byte[BufferSize]);
+
+        input.CopyTo(literalOut, BufferSize);
     }
 
     /// <returns>
@@ -396,6 +534,46 @@ public class PgpService : IPgpService
     /// no integrity check at all. A check that is present and fails throws instead.
     /// </returns>
     private static bool Decrypt(Stream inputStream, Stream keyIn, char[] passPhrase, string outputFilePath)
+    {
+        // The plaintext goes to a temporary file first. The integrity check can only be verified
+        // once the whole stream has been read, so writing straight to the destination would leave
+        // altered plaintext sitting at the path the user asked for, even for the moment it takes
+        // to delete it again.
+        string tempPath = outputFilePath + ".partial";
+
+        try
+        {
+            bool integrityProtected;
+            using (Stream output = File.Create(tempPath))
+            {
+                integrityProtected = DecryptCore(inputStream, keyIn, passPhrase, output);
+            }
+
+            File.Move(tempPath, outputFilePath, overwrite: true);
+            return integrityProtected;
+        }
+        finally
+        {
+            TryDeleteFile(tempPath);
+        }
+    }
+
+    /// <summary>
+    /// The one place a message is opened.
+    /// </summary>
+    /// <remarks>
+    /// Streams into <paramref name="output"/> as it goes and throws afterwards if the integrity
+    /// check fails, because that check cannot be evaluated until the last byte has been read and
+    /// buffering an arbitrarily large file to avoid that is not an option. The caller therefore
+    /// owns the cleanup: the file path writes to a .partial and only moves it into place on
+    /// success, and the text path throws away a MemoryStream. Anything else calling this has the
+    /// same obligation.
+    /// </remarks>
+    /// <returns>
+    /// True if the message carried an integrity check and it verified. False if it had none at
+    /// all. A check that is present and fails throws instead.
+    /// </returns>
+    private static bool DecryptCore(Stream inputStream, Stream keyIn, char[] passPhrase, Stream output)
     {
         inputStream = PgpUtilities.GetDecoderStream(inputStream);
         var pgpObjFactory = new PgpObjectFactory(inputStream);
@@ -425,80 +603,32 @@ public class PgpService : IPgpService
             throw new PgpException(
                 "this file was not encrypted to the key you selected. Pick the private key matching the public key it was encrypted with.");
 
-        // The plaintext goes to a temporary file first. The integrity check can only be verified
-        // once the whole stream has been read, so writing straight to the destination would leave
-        // altered plaintext sitting at the path the user asked for, even for the moment it takes
-        // to delete it again.
-        string tempPath = outputFilePath + ".partial";
-        bool integrityProtected;
+        using Stream clear = pbe.GetDataStream(sKey);
+        var plainFact = new PgpObjectFactory(clear);
 
-        try
+        if (UnwrapToLiteral(plainFact) is not PgpLiteralData ld)
+            throw new PgpException("the message decrypted but does not contain any data.");
+
+        using (Stream unc = ld.GetInputStream())
         {
-            using (Stream clear = pbe.GetDataStream(sKey))
-            {
-                var plainFact = new PgpObjectFactory(clear);
-
-                if (UnwrapToLiteral(plainFact) is not PgpLiteralData ld)
-                    throw new PgpException("the message decrypted but does not contain a file.");
-
-                using (Stream unc = ld.GetInputStream())
-                using (Stream outStream = File.Create(tempPath))
-                {
-                    Streams.PipeAll(unc, outStream);
-                }
-
-                // Verify inside the using block: it drains whatever is left of the encrypted
-                // stream to reach the trailing MDC packet, so the stream has to still be open.
-                integrityProtected = pbe.IsIntegrityProtected();
-                if (integrityProtected && !pbe.Verify())
-                {
-                    throw new IntegrityCheckFailedException(
-                        "the integrity check failed. This file was altered after it was encrypted, so the decrypted output has been discarded.");
-                }
-            }
-
-            File.Move(tempPath, outputFilePath, overwrite: true);
-            return integrityProtected;
+            Streams.PipeAll(unc, output);
         }
-        finally
+
+        // Verified before returning, and while the encrypted stream is still open: Verify()
+        // drains whatever is left of it to reach the trailing MDC packet, so moving this after
+        // the using block silently stops it working.
+        bool integrityProtected = pbe.IsIntegrityProtected();
+        if (integrityProtected && !pbe.Verify())
         {
-            TryDeleteFile(tempPath);
+            throw new IntegrityCheckFailedException(
+                "the integrity check failed. This file was altered after it was encrypted, so the decrypted output has been discarded.");
         }
+
+        return integrityProtected;
     }
 
-    private static PgpPrivateKey ExtractPrivateKey(PgpSecretKey secretKey, char[] passPhrase)
-    {
-        try
-        {
-            // GnuPG encodes passphrases as UTF-8, so this is the path that matters for interop
-            // and the one this app writes with.
-            return secretKey.ExtractPrivateKeyUtf8(passPhrase);
-        }
-        catch (PgpException utf8Failure) when (IsPassphraseFailure(utf8Failure))
-        {
-            try
-            {
-                // BouncyCastle's older default wrote one byte per char. Identical for ASCII,
-                // different beyond it, so a key protected that way still opens here.
-                return secretKey.ExtractPrivateKey(passPhrase);
-            }
-            catch (PgpException legacyFailure) when (IsPassphraseFailure(legacyFailure))
-            {
-                throw new IncorrectPassphraseException(
-                    "incorrect passphrase for this key. Check caps lock and your keyboard layout, then try again.",
-                    legacyFailure);
-            }
-        }
-    }
-
-    /// <summary>
-    /// Distinguishes a bad passphrase from a key this build cannot handle at all. BouncyCastle
-    /// reports both as PgpException, and telling a user to retype their passphrase when the real
-    /// problem is an unsupported algorithm sends them round in circles.
-    /// </summary>
-    private static bool IsPassphraseFailure(PgpException ex) =>
-        ex.Message.Contains("checksum mismatch", StringComparison.OrdinalIgnoreCase) ||
-        ex.Message.Contains("Exception decrypting key", StringComparison.OrdinalIgnoreCase);
+    private static PgpPrivateKey ExtractPrivateKey(PgpSecretKey secretKey, char[] passPhrase) =>
+        PgpKeyRoles.ExtractPrivateKey(secretKey, passPhrase);
 
     private static PgpObject? UnwrapToLiteral(PgpObjectFactory factory)
     {
@@ -572,11 +702,14 @@ public class PgpService : IPgpService
         throw new ArgumentException("No encryption key found in public key ring.");
     }
 
-    private static string Armor(Action<Stream> encode)
+    private static string Armor(Action<Stream> encode, (string Name, string Value)[]? headers = null)
     {
         using var buffer = new MemoryStream();
         using (var armoredOut = new ArmoredOutputStream(buffer))
         {
+            foreach ((string name, string value) in headers ?? [])
+                armoredOut.SetHeader(name, value);
+
             encode(armoredOut);
         }
         return Encoding.UTF8.GetString(buffer.ToArray());
