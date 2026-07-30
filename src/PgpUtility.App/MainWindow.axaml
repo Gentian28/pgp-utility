@@ -1,0 +1,64 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="using:PgpUtility.App.ViewModels"
+        xmlns:views="using:PgpUtility.App.Views"
+        mc:Ignorable="d"
+        x:Class="PgpUtility.App.MainWindow"
+        x:DataType="vm:MainViewModel"
+        Icon="/Assets/icon.ico"
+        Title="PGP Utility"
+        Width="960" Height="720"
+        MinWidth="720" MinHeight="520"
+        WindowStartupLocation="CenterScreen">
+
+  <!-- No Design.DataContext: MainViewModel takes its services through the constructor and a
+       parameterless one purely for the previewer would be a second way to build the app. -->
+
+  <DockPanel>
+
+    <!-- Status bar -->
+    <Border DockPanel.Dock="Bottom" Classes="panel" CornerRadius="0"
+            BorderThickness="0,1,0,0" Padding="12,6">
+      <DockPanel>
+        <ToggleButton DockPanel.Dock="Right" Content="Log"
+                      IsChecked="{Binding IsLogPanelVisible}"
+                      Padding="10,2" FontSize="12" />
+        <TextBlock Text="{Binding StatusMessage}" VerticalAlignment="Center"
+                   TextTrimming="CharacterEllipsis"
+                   Foreground="{DynamicResource MutedTextBrush}" FontSize="12" />
+      </DockPanel>
+    </Border>
+
+    <!-- Log panel -->
+    <Border DockPanel.Dock="Bottom" Classes="panel" CornerRadius="0"
+            BorderThickness="0,1,0,0" Height="160"
+            IsVisible="{Binding IsLogPanelVisible}">
+      <ScrollViewer Padding="12,8">
+        <ItemsControl ItemsSource="{Binding LogEntries}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate>
+              <TextBlock Text="{Binding}" FontSize="11"
+                         FontFamily="Cascadia Code,Menlo,DejaVu Sans Mono,Consolas,monospace"
+                         TextWrapping="Wrap" />
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </ScrollViewer>
+    </Border>
+
+    <TabControl SelectedIndex="{Binding SelectedTabIndex}" Padding="0">
+      <TabItem Header="Encrypt / Decrypt">
+        <views:EncryptDecryptView DataContext="{Binding EncryptDecryptVm}" />
+      </TabItem>
+      <TabItem Header="Keys">
+        <views:KeyManagementView DataContext="{Binding KeyManagementVm}" />
+      </TabItem>
+      <TabItem Header="Generate">
+        <views:KeyGenerationView DataContext="{Binding KeyGenerationVm}" />
+      </TabItem>
+    </TabControl>
+
+  </DockPanel>
+</Window>

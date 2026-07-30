@@ -1,0 +1,55 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+    <ApplicationIcon>Assets\icon.ico</ApplicationIcon>
+    <RootNamespace>PgpUtility.App</RootNamespace>
+  </PropertyGroup>
+
+  <!-- Distribution. Here and not in Directory.Build.props on purpose: Core and the test project
+       must stay RID-agnostic, and a self-contained test host would only slow the suite down. -->
+  <PropertyGroup>
+    <RuntimeIdentifiers>win-x64;linux-x64;osx-arm64;osx-x64</RuntimeIdentifiers>
+  </PropertyGroup>
+
+  <!-- Only when a RID is actually selected (`dotnet publish -r win-x64`). Setting SelfContained
+       or PublishSingleFile unconditionally makes a plain `dotnet build` fail with NETSDK1031,
+       because both require a RuntimeIdentifier. -->
+  <PropertyGroup Condition="'$(RuntimeIdentifier)' != ''">
+    <SelfContained>true</SelfContained>
+    <PublishSingleFile>true</PublishSingleFile>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <IncludeAllContentForSelfExtract>true</IncludeAllContentForSelfExtract>
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+    <!-- Trimming is not safe here: Avalonia resolves XAML types by name and BouncyCastle picks
+         algorithm implementations by reflection, so a trimmer would remove things that are only
+         ever referenced as strings. -->
+    <PublishTrimmed>false</PublishTrimmed>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <AvaloniaResource Include="Assets\**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" />
+    <PackageReference Include="Avalonia.Desktop" />
+    <PackageReference Include="Avalonia.Fonts.Inter" />
+    <PackageReference Include="Semi.Avalonia" />
+    <PackageReference Include="CommunityToolkit.Mvvm" />
+    <PackageReference Include="Tmds.DBus.Protocol" />
+    <!-- Debug only, so the diagnostics window does not ship in a release build. -->
+    <PackageReference Include="Avalonia.Diagnostics">
+      <IncludeAssets Condition="'$(Configuration)' != 'Debug'">None</IncludeAssets>
+      <PrivateAssets Condition="'$(Configuration)' != 'Debug'">All</PrivateAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\PgpUtility.Core\PgpUtility.Core.csproj" />
+  </ItemGroup>
+
+</Project>

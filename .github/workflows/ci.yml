@@ -11,9 +11,11 @@ jobs:
     name: build & test (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
+      # Don't cancel the other legs the moment one fails. When something breaks on exactly one
+      # OS, the passing legs are the useful half of the signal.
       fail-fast: false
       matrix:
-        os: [windows-latest]
+        os: [windows-latest, ubuntu-latest, macos-latest]
 
     steps:
       - uses: actions/checkout@v4
@@ -24,10 +26,15 @@ jobs:
           dotnet-version: 8.0.x
 
       # The interoperability tests skip when gpg is missing, so without this the suite would go
-      # green having proved nothing about the one claim that is hardest to get right. The runner
-      # image does not carry gpg on PATH by default.
-      - name: Install GnuPG
+      # green having proved nothing about the claim that is hardest to get right. Only Ubuntu
+      # ships it already.
+      - name: Install GnuPG (Windows)
+        if: runner.os == 'Windows'
         run: choco install gnupg -y --no-progress
+
+      - name: Install GnuPG (macOS)
+        if: runner.os == 'macOS'
+        run: brew install gnupg
 
       - name: Restore
         run: dotnet restore PgpUtility.slnx
@@ -35,12 +42,14 @@ jobs:
       - name: Build
         run: dotnet build PgpUtility.slnx --configuration Release --no-restore
 
-      # PGPUTILITY_REQUIRE_GPG turns a skipped interoperability test into a failure. gpg is
-      # installed above, so a skip here means the install or the agent broke, and that must not
-      # look like a pass.
+      # PGPUTILITY_REQUIRE_GPG turns a skipped interoperability test into a failure. Set on Linux
+      # only, deliberately: gpg-agent is most reliable there, and one platform that is guaranteed
+      # to prove interoperability on every build is worth more than three that are occasionally
+      # red for reasons that have nothing to do with this code. The tests still run everywhere
+      # they can; they are only mandatory here.
       - name: Test
         env:
-          PGPUTILITY_REQUIRE_GPG: "1"
+          PGPUTILITY_REQUIRE_GPG: ${{ runner.os == 'Linux' && '1' || '' }}
         run: dotnet test PgpUtility.slnx --configuration Release --no-build --verbosity normal --collect:"XPlat Code Coverage"
 
       - name: Upload coverage
@@ -51,6 +60,64 @@ jobs:
           name: coverage-${{ matrix.os }}
           path: "**/TestResults/**/coverage.cobertura.xml"
           if-no-files-found: ignore
+
+  publish:
+    name: publish ${{ matrix.rid }}
+    needs: build
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: windows-latest, rid: win-x64,   exe: PgpUtility.App.exe }
+          - { os: ubuntu-latest,  rid: linux-x64, exe: PgpUtility.App }
+          - { os: macos-latest,   rid: osx-arm64, exe: PgpUtility.App }
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Publish self-contained single file
+        run: dotnet publish src/PgpUtility.App -c Release -r ${{ matrix.rid }} -o out
+
+      # The point of the publish settings is that a user gets one file and no .NET install.
+      # Assert it rather than trusting it stays true.
+      - name: Verify the drop is a single file
+        shell: bash
+        run: |
+          ls -la out
+          count=$(find out -maxdepth 1 -type f | wc -l)
+          if [ "$count" -ne 1 ]; then
+            echo "::error::expected exactly 1 file in the publish drop, found $count"
+            find out -maxdepth 1 -type f
+            exit 1
+          fi
+          test -f "out/${{ matrix.exe }}" || { echo "::error::${{ matrix.exe }} missing"; exit 1; }
+
+      # Proves the binary is not merely well-formed but actually starts: the runtime boots, the
+      # single-file bundle self-extracts its native libraries, and Avalonia opens a window against
+      # a virtual display. Still running when the timer fires (124) is the pass condition; any
+      # earlier exit means it crashed on startup. A build that compiles and then dies opening its
+      # first view is exactly what this catches.
+      - name: Smoke test - does it launch?
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libice6 libsm6 libx11-6 xvfb
+          chmod +x out/PgpUtility.App
+          set +e
+          xvfb-run -a timeout 20 ./out/PgpUtility.App
+          code=$?
+          set -e
+          if [ "$code" -ne 124 ]; then
+            echo "::error::app exited with $code instead of staying up"
+            exit 1
+          fi
+          echo "app stayed up for the full 20s"
 
   vulnerable-packages:
     runs-on: ubuntu-latest

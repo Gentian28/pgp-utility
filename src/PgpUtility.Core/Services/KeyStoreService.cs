@@ -1,4 +1,3 @@
-using System.IO;
 using System.Text.Json;
 using PgpUtility.Models;
 
@@ -17,20 +16,21 @@ public class KeyStoreService : IKeyStoreService
     };
 
     /// <param name="keysDirectory">
-    /// Where the store lives. Defaults to the per-user application data location. Overridden by
+    /// Where the store lives. Defaults to <see cref="KeyStoreLocation.Default"/>. Overridden by
     /// tests so a run never touches the developer's real key store, which is the sort of thing
     /// that is only noticed after it has already happened.
     /// </param>
     public KeyStoreService(IPgpService pgpService, string? keysDirectory = null)
     {
         _pgpService = pgpService;
-        _keysDirectory = keysDirectory ?? Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            "PgpUtility", "Keys");
+        _keysDirectory = keysDirectory ?? KeyStoreLocation.Default();
         _indexPath = Path.Combine(_keysDirectory, "index.json");
-        Directory.CreateDirectory(_keysDirectory);
+        KeyStoreLocation.CreateSecureDirectory(_keysDirectory);
         LoadIndex();
     }
+
+    /// <summary>The directory this store reads and writes. Exposed so the UI can offer to open it.</summary>
+    public string Directory => _keysDirectory;
 
     public IReadOnlyList<PgpKeyInfo> GetAllKeys() => _keys.AsReadOnly();
 
@@ -38,8 +38,7 @@ public class KeyStoreService : IKeyStoreService
     {
         var info = _pgpService.ReadPublicKeyInfo(filePath, true);
         string destFileName = $"pub_{info.KeyId}.asc";
-        string destPath = Path.Combine(_keysDirectory, destFileName);
-        await Task.Run(() => File.Copy(filePath, destPath, true));
+        await CopyIntoStoreAsync(filePath, destFileName);
 
         info.PublicKeyFile = destFileName;
         MergeKey(info);
@@ -51,8 +50,7 @@ public class KeyStoreService : IKeyStoreService
     {
         var info = _pgpService.ReadPrivateKeyInfo(filePath, true);
         string secFileName = $"sec_{info.KeyId}.asc";
-        string secPath = Path.Combine(_keysDirectory, secFileName);
-        await Task.Run(() => File.Copy(filePath, secPath, true));
+        await CopyIntoStoreAsync(filePath, secFileName);
 
         info.PrivateKeyFile = secFileName;
         info.HasPrivateKey = true;
@@ -60,8 +58,7 @@ public class KeyStoreService : IKeyStoreService
         // Auto-extract public key from private key
         string pubKeyArmored = _pgpService.ExtractPublicKeyFromPrivateKey(filePath, true);
         string pubFileName = $"pub_{info.KeyId}.asc";
-        string pubPath = Path.Combine(_keysDirectory, pubFileName);
-        await File.WriteAllTextAsync(pubPath, pubKeyArmored);
+        await WriteIntoStoreAsync(pubFileName, pubKeyArmored);
         info.PublicKeyFile = pubFileName;
 
         MergeKey(info);
@@ -76,24 +73,21 @@ public class KeyStoreService : IKeyStoreService
         {
             info = _pgpService.ReadPrivateKeyInfo(keyData, false);
             string secFileName = $"sec_{info.KeyId}.asc";
-            string secPath = Path.Combine(_keysDirectory, secFileName);
-            await File.WriteAllTextAsync(secPath, keyData);
+            await WriteIntoStoreAsync(secFileName, keyData);
             info.PrivateKeyFile = secFileName;
             info.HasPrivateKey = true;
 
             // Auto-extract public key from private key
             string pubKeyArmored = _pgpService.ExtractPublicKeyFromPrivateKey(keyData, false);
             string pubFileName = $"pub_{info.KeyId}.asc";
-            string pubPath = Path.Combine(_keysDirectory, pubFileName);
-            await File.WriteAllTextAsync(pubPath, pubKeyArmored);
+            await WriteIntoStoreAsync(pubFileName, pubKeyArmored);
             info.PublicKeyFile = pubFileName;
         }
         else
         {
             info = _pgpService.ReadPublicKeyInfo(keyData, false);
             string pubFileName = $"pub_{info.KeyId}.asc";
-            string pubPath = Path.Combine(_keysDirectory, pubFileName);
-            await File.WriteAllTextAsync(pubPath, keyData);
+            await WriteIntoStoreAsync(pubFileName, keyData);
             info.PublicKeyFile = pubFileName;
         }
 
@@ -113,6 +107,11 @@ public class KeyStoreService : IKeyStoreService
 
         string sourcePath = Path.Combine(_keysDirectory, sourceFile);
         await Task.Run(() => File.Copy(sourcePath, outputPath, true));
+
+        // An exported private key lands wherever the user chose, outside the store's protected
+        // directory, so it needs its own mode set rather than inheriting a permissive one.
+        if (exportPrivate)
+            KeyStoreLocation.RestrictFile(outputPath);
     }
 
     public async Task DeleteKeyAsync(string keyId)
@@ -147,6 +146,27 @@ public class KeyStoreService : IKeyStoreService
     public async Task RefreshAsync()
     {
         await Task.Run(LoadIndex);
+    }
+
+    // --- Writing ---
+
+    // Every path that puts a file in the store goes through one of these two, so there is a
+    // single place where the file mode is applied. A key written by a route that forgot to
+    // restrict it would be world readable on Unix and show no symptom on Windows.
+
+    private async Task WriteIntoStoreAsync(string fileName, string contents)
+    {
+        string path = Path.Combine(_keysDirectory, fileName);
+        await File.WriteAllTextAsync(path, contents);
+        KeyStoreLocation.RestrictFile(path);
+    }
+
+    private async Task CopyIntoStoreAsync(string sourcePath, string fileName)
+    {
+        string path = Path.Combine(_keysDirectory, fileName);
+        await Task.Run(() => File.Copy(sourcePath, path, true));
+        // A copy carries the source file's permissions, so this cannot be left to the directory.
+        KeyStoreLocation.RestrictFile(path);
     }
 
     private void MergeKey(PgpKeyInfo newInfo)
@@ -191,6 +211,9 @@ public class KeyStoreService : IKeyStoreService
     {
         string json = JsonSerializer.Serialize(_keys, JsonOptions);
         await File.WriteAllTextAsync(_indexPath, json);
+        // The index lists who a user corresponds with. Not secret key material, but not something
+        // to leave readable to every account on a shared machine either.
+        KeyStoreLocation.RestrictFile(_indexPath);
     }
 
     private static void TryDeleteFile(string path)

@@ -1,0 +1,98 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:PgpUtility.App.ViewModels"
+             mc:Ignorable="d"
+             x:Class="PgpUtility.App.Views.KeyGenerationView"
+             x:DataType="vm:KeyGenerationViewModel">
+
+  <ScrollViewer Padding="16">
+    <StackPanel Spacing="14" MaxWidth="620" HorizontalAlignment="Left">
+
+      <TextBlock Text="Generate a key pair" Classes="sectionHeader" FontSize="16" />
+
+      <StackPanel Spacing="4">
+        <TextBlock Text="Name" Classes="fieldLabel" />
+        <TextBox Text="{Binding Name}" Watermark="The name others will see" />
+      </StackPanel>
+
+      <StackPanel Spacing="4">
+        <TextBlock Text="Email" Classes="fieldLabel" />
+        <TextBox Text="{Binding Email}" Watermark="Optional" />
+      </StackPanel>
+
+      <StackPanel Spacing="4">
+        <TextBlock Text="Passphrase" Classes="fieldLabel" />
+        <TextBox x:Name="PassphraseBox" PasswordChar="●" />
+        <TextBlock Text="Confirm passphrase" Classes="fieldLabel" Margin="0,6,0,0" />
+        <TextBox x:Name="ConfirmPassphraseBox" PasswordChar="●" />
+        <TextBlock Classes="warning"
+                   Text="There is no way to recover this passphrase. Lose it and the key is gone, along with anything only it can decrypt." />
+      </StackPanel>
+
+      <StackPanel Spacing="4">
+        <TextBlock Text="Algorithm" Classes="fieldLabel" />
+        <ComboBox ItemsSource="{Binding Algorithms}"
+                  SelectedValue="{Binding SelectedAlgorithm}"
+                  SelectedValueBinding="{Binding Value, x:DataType=vm:AlgorithmChoice}"
+                  DisplayMemberBinding="{Binding Display, x:DataType=vm:AlgorithmChoice}"
+                  HorizontalAlignment="Left" MinWidth="240" />
+        <TextBlock Classes="hint" MaxWidth="460"
+                   Text="Ed25519 generates instantly and produces much smaller keys and signatures. Choose RSA only if you need to work with tooling older than GnuPG 2.1." />
+      </StackPanel>
+
+      <!-- RSA only: Ed25519's size is fixed by the curve. -->
+      <StackPanel Spacing="4" IsVisible="{Binding IsRsaSelected}">
+        <TextBlock Text="Key size" Classes="fieldLabel" />
+        <ComboBox ItemsSource="{Binding KeySizes}" SelectedItem="{Binding SelectedKeySize}"
+                  HorizontalAlignment="Left" MinWidth="140" />
+        <TextBlock Classes="hint" Text="4096 takes noticeably longer to generate." />
+      </StackPanel>
+
+      <StackPanel Spacing="6">
+        <CheckBox Content="Set an expiry date" IsChecked="{Binding HasExpiration}" />
+        <DatePicker SelectedDate="{Binding ExpirationDate}" IsEnabled="{Binding HasExpiration}"
+                    HorizontalAlignment="Left" />
+        <TextBlock Classes="hint" MaxWidth="460"
+                   Text="An expiry is a safety net, not a deadline: you can always extend it later with the private key. A key that never expires can never be retired if you lose access to it." />
+      </StackPanel>
+
+      <Button Content="Generate key pair" Classes="Primary"
+              Command="{Binding GenerateCommand}" IsEnabled="{Binding !IsBusy}"
+              HorizontalAlignment="Left" />
+
+      <TextBlock Text="{Binding StatusMessage}" Classes="hint" />
+
+      <!-- Output -->
+      <StackPanel Spacing="10" IsVisible="{Binding KeysGenerated}">
+
+        <StackPanel Spacing="4">
+          <DockPanel>
+            <Button DockPanel.Dock="Right" Content="Copy" Command="{Binding CopyPublicKeyCommand}" />
+            <TextBlock Text="Public key" Classes="sectionHeader" VerticalAlignment="Center" />
+          </DockPanel>
+          <TextBox Classes="keyBlock" Text="{Binding GeneratedPublicKey, Mode=OneWay}" />
+          <TextBlock Classes="hint" Text="Share this freely. It is what others use to encrypt to you." />
+        </StackPanel>
+
+        <StackPanel Spacing="4">
+          <DockPanel>
+            <Button DockPanel.Dock="Right" Content="Copy" Command="{Binding CopyPrivateKeyCommand}" />
+            <TextBlock Text="Private key" Classes="sectionHeader" VerticalAlignment="Center" />
+          </DockPanel>
+          <TextBox Classes="keyBlock" Text="{Binding GeneratedPrivateKey, Mode=OneWay}" />
+          <TextBlock Classes="warning"
+                     Text="Never share this. Anyone holding it and the passphrase can read everything sent to you." />
+        </StackPanel>
+
+        <StackPanel Orientation="Horizontal" Spacing="8">
+          <Button Content="Save to disk..." Command="{Binding SaveKeysCommand}" />
+          <Button Content="Add to key store" Classes="Primary" Command="{Binding ImportToStoreCommand}" />
+        </StackPanel>
+
+      </StackPanel>
+
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>
