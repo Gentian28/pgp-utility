@@ -1,0 +1,113 @@
+<UserControl x:Class="PgpUtility.Views.KeyGenerationView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="clr-namespace:PgpUtility.ViewModels"
+             xmlns:converters="clr-namespace:PgpUtility.Converters"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance vm:KeyGenerationViewModel}">
+
+    <UserControl.Resources>
+        <converters:BoolToVisibilityConverter x:Key="BoolToVis" />
+        <converters:InverseBoolConverter x:Key="InverseBool" />
+    </UserControl.Resources>
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="8">
+        <StackPanel Margin="8" MaxWidth="600" HorizontalAlignment="Left">
+            <TextBlock Text="Generate PGP Key Pair" Style="{StaticResource SectionHeader}"
+                       FontSize="16" Margin="0,0,0,16" />
+
+            <!-- Name -->
+            <TextBlock Text="Name" Style="{StaticResource FieldLabel}" />
+            <TextBox Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}"
+                     Style="{StaticResource StandardTextBox}" Margin="0,0,0,12" />
+
+            <!-- Email -->
+            <TextBlock Text="Email" Style="{StaticResource FieldLabel}" />
+            <TextBox Text="{Binding Email, UpdateSourceTrigger=PropertyChanged}"
+                     Style="{StaticResource StandardTextBox}" Margin="0,0,0,12" />
+
+            <!-- Passphrase -->
+            <TextBlock Text="Passphrase" Style="{StaticResource FieldLabel}" />
+            <PasswordBox x:Name="PassphraseBox"
+                         Style="{StaticResource StandardPasswordBox}"
+                         PasswordChanged="PassphraseBox_PasswordChanged"
+                         Margin="0,0,0,12" />
+
+            <!-- Confirm Passphrase -->
+            <TextBlock Text="Confirm Passphrase" Style="{StaticResource FieldLabel}" />
+            <PasswordBox x:Name="ConfirmPassphraseBox"
+                         Style="{StaticResource StandardPasswordBox}"
+                         PasswordChanged="ConfirmPassphraseBox_PasswordChanged"
+                         Margin="0,0,0,12" />
+
+            <!-- Key Size -->
+            <TextBlock Text="Key Size" Style="{StaticResource FieldLabel}" />
+            <ComboBox ItemsSource="{Binding KeySizes}"
+                      SelectedItem="{Binding SelectedKeySize}"
+                      Padding="6,4" FontSize="13" Margin="0,0,0,12"
+                      HorizontalAlignment="Left" Width="120" />
+
+            <!-- Expiration -->
+            <CheckBox Content="Set expiration date" IsChecked="{Binding HasExpiration}"
+                      FontSize="13" Margin="0,0,0,4" />
+            <DatePicker SelectedDate="{Binding ExpirationDate}"
+                        IsEnabled="{Binding HasExpiration}"
+                        Margin="0,0,0,16"
+                        HorizontalAlignment="Left" Width="200" />
+
+            <!-- Generate Button -->
+            <Button Content="Generate Key Pair" Command="{Binding GenerateCommand}"
+                    Style="{StaticResource PrimaryButton}" Margin="0,0,0,8"
+                    HorizontalAlignment="Left"
+                    IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBool}}" />
+
+            <!-- Progress -->
+            <TextBlock Text="{Binding StatusMessage}"
+                       Foreground="{StaticResource TextSecondaryBrush}" FontSize="12"
+                       Margin="0,0,0,16" />
+
+            <!-- Generated Keys Output -->
+            <StackPanel Visibility="{Binding KeysGenerated, Converter={StaticResource BoolToVis}}">
+                <!-- Public Key -->
+                <DockPanel Margin="0,0,0,4">
+                    <Button DockPanel.Dock="Right" Content="Copy"
+                            Command="{Binding CopyPublicKeyCommand}"
+                            Style="{StaticResource SecondaryButton}" Padding="8,4" />
+                    <TextBlock Text="Public Key" Style="{StaticResource SectionHeader}" VerticalAlignment="Center" />
+                </DockPanel>
+                <TextBox Text="{Binding GeneratedPublicKey, Mode=OneWay}"
+                         IsReadOnly="True" FontFamily="Consolas" FontSize="11"
+                         TextWrapping="Wrap" MaxHeight="150"
+                         VerticalScrollBarVisibility="Auto"
+                         Background="{StaticResource GrayLightBrush}"
+                         BorderBrush="{StaticResource BorderBrush}"
+                         Padding="8" Margin="0,0,0,16" />
+
+                <!-- Private Key -->
+                <DockPanel Margin="0,0,0,4">
+                    <Button DockPanel.Dock="Right" Content="Copy"
+                            Command="{Binding CopyPrivateKeyCommand}"
+                            Style="{StaticResource SecondaryButton}" Padding="8,4" />
+                    <TextBlock Text="Private Key" Style="{StaticResource SectionHeader}" VerticalAlignment="Center" />
+                </DockPanel>
+                <TextBox Text="{Binding GeneratedPrivateKey, Mode=OneWay}"
+                         IsReadOnly="True" FontFamily="Consolas" FontSize="11"
+                         TextWrapping="Wrap" MaxHeight="150"
+                         VerticalScrollBarVisibility="Auto"
+                         Background="{StaticResource GrayLightBrush}"
+                         BorderBrush="{StaticResource BorderBrush}"
+                         Padding="8" Margin="0,0,0,16" />
+
+                <!-- Action Buttons -->
+                <StackPanel Orientation="Horizontal">
+                    <Button Content="Save Keys to Disk" Command="{Binding SaveKeysCommand}"
+                            Style="{StaticResource SecondaryButton}" Margin="0,0,8,0" />
+                    <Button Content="Import to Key Store" Command="{Binding ImportToStoreCommand}"
+                            Style="{StaticResource PrimaryButton}" />
+                </StackPanel>
+            </StackPanel>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

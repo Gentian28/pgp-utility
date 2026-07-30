@@ -1,0 +1,150 @@
+<UserControl x:Class="PgpUtility.Views.EncryptDecryptView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="clr-namespace:PgpUtility.ViewModels"
+             xmlns:converters="clr-namespace:PgpUtility.Converters"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance vm:EncryptDecryptViewModel}"
+             AllowDrop="True"
+             Drop="OnDrop"
+             DragOver="OnDragOver">
+
+    <UserControl.Resources>
+        <converters:BoolToVisibilityConverter x:Key="BoolToVis" />
+        <converters:InverseBoolConverter x:Key="InverseBool" />
+    </UserControl.Resources>
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="8">
+        <StackPanel Margin="8">
+            <!-- Mode Toggle -->
+            <TextBlock Text="Mode" Style="{StaticResource SectionHeader}" />
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
+                <RadioButton Content="Encrypt" IsChecked="{Binding IsEncryptMode}"
+                             GroupName="Mode" Margin="0,0,16,0" FontSize="13" />
+                <RadioButton Content="Decrypt" IsChecked="{Binding IsEncryptMode, Converter={StaticResource InverseBool}}"
+                             GroupName="Mode" FontSize="13" />
+            </StackPanel>
+
+            <!-- File List -->
+            <TextBlock Text="Files" Style="{StaticResource SectionHeader}" />
+            <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                    CornerRadius="4" Background="{StaticResource SurfaceBrush}"
+                    MinHeight="120" Margin="0,0,0,8">
+                <Grid>
+                    <DataGrid ItemsSource="{Binding Files}"
+                              AutoGenerateColumns="False"
+                              CanUserAddRows="False"
+                              CanUserDeleteRows="False"
+                              HeadersVisibility="Column"
+                              GridLinesVisibility="Horizontal"
+                              BorderThickness="0"
+                              IsReadOnly="True"
+                              FontSize="12">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="File Name" Binding="{Binding FileName}" Width="*" />
+                            <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="100" />
+                            <DataGridTextColumn Header="Error" Binding="{Binding ErrorMessage}" Width="200" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+                    <TextBlock Text="Drag and drop files here, or click Add Files"
+                               HorizontalAlignment="Center" VerticalAlignment="Center"
+                               Foreground="{StaticResource GrayBrush}" FontSize="12"
+                               x:Name="DropHintText" />
+                </Grid>
+            </Border>
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
+                <Button Content="Add Files" Command="{Binding AddFilesCommand}"
+                        Style="{StaticResource SecondaryButton}" Margin="0,0,8,0" />
+                <Button Content="Clear" Command="{Binding ClearFilesCommand}"
+                        Style="{StaticResource SecondaryButton}" />
+            </StackPanel>
+
+            <!-- Key Selection -->
+            <TextBlock Text="Key" Style="{StaticResource SectionHeader}" />
+            <StackPanel Margin="0,0,0,8">
+                <RadioButton Content="Use key from store" IsChecked="{Binding UseKeyFromStore}"
+                             GroupName="KeySource" Margin="0,0,0,4" FontSize="13" />
+                <ComboBox ItemsSource="{Binding AvailableKeys}"
+                          SelectedValue="{Binding SelectedKeyId}"
+                          SelectedValuePath="KeyId"
+                          IsEnabled="{Binding UseKeyFromStore}"
+                          Margin="20,0,0,8" Padding="6,4" FontSize="12">
+                    <ComboBox.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock>
+                                <Run Text="{Binding UserId}" />
+                                <Run Text=" (" /><Run Text="{Binding KeyId}" /><Run Text=")" />
+                            </TextBlock>
+                        </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                </ComboBox>
+
+                <RadioButton Content="Use key file" IsChecked="{Binding UseKeyFromStore, Converter={StaticResource InverseBool}}"
+                             GroupName="KeySource" Margin="0,0,0,4" FontSize="13" />
+                <DockPanel Margin="20,0,0,8">
+                    <Button DockPanel.Dock="Right" Content="Browse..."
+                            Command="{Binding BrowseKeyCommand}"
+                            Style="{StaticResource SecondaryButton}" Margin="8,0,0,0"
+                            IsEnabled="{Binding UseKeyFromStore, Converter={StaticResource InverseBool}}" />
+                    <TextBox Text="{Binding KeyFilePath, UpdateSourceTrigger=PropertyChanged}"
+                             Style="{StaticResource StandardTextBox}"
+                             IsEnabled="{Binding UseKeyFromStore, Converter={StaticResource InverseBool}}" />
+                </DockPanel>
+            </StackPanel>
+
+            <!-- Passphrase (decrypt only) -->
+            <StackPanel Visibility="{Binding IsEncryptMode, Converter={StaticResource BoolToVis}, ConverterParameter=Inverse}"
+                        Margin="0,0,0,16">
+                <TextBlock Text="Passphrase" Style="{StaticResource FieldLabel}" />
+                <PasswordBox x:Name="PassphraseBox"
+                             Style="{StaticResource StandardPasswordBox}"
+                             PasswordChanged="PassphraseBox_PasswordChanged"
+                             MaxWidth="400" HorizontalAlignment="Left" />
+            </StackPanel>
+
+            <!-- Output Directory -->
+            <TextBlock Text="Output Directory" Style="{StaticResource FieldLabel}" />
+            <DockPanel Margin="0,0,0,16">
+                <Button DockPanel.Dock="Right" Content="Browse..."
+                        Command="{Binding BrowseOutputDirectoryCommand}"
+                        Style="{StaticResource SecondaryButton}" Margin="8,0,0,0" />
+                <TextBox Text="{Binding OutputDirectory, UpdateSourceTrigger=PropertyChanged}"
+                         Style="{StaticResource StandardTextBox}" />
+            </DockPanel>
+
+            <!-- Options -->
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
+                <CheckBox Content="ASCII Armor" IsChecked="{Binding AsciiArmor}"
+                          Margin="0,0,16,0" FontSize="13" />
+                <CheckBox Content="Integrity Check" IsChecked="{Binding IntegrityCheck}"
+                          FontSize="13" />
+            </StackPanel>
+
+            <!-- Progress -->
+            <ProgressBar Value="{Binding ProgressValue}" Maximum="100"
+                         Style="{StaticResource StandardProgressBar}"
+                         Visibility="{Binding IsBusy, Converter={StaticResource BoolToVis}}"
+                         Margin="0,0,0,4" />
+            <TextBlock Text="{Binding CurrentFileStatus}"
+                       Foreground="{StaticResource TextSecondaryBrush}" FontSize="12"
+                       Visibility="{Binding IsBusy, Converter={StaticResource BoolToVis}}"
+                       Margin="0,0,0,8" />
+
+            <!-- Action Buttons -->
+            <StackPanel Orientation="Horizontal">
+                <Button Content="Process" Command="{Binding ProcessCommand}"
+                        Style="{StaticResource PrimaryButton}" Margin="0,0,8,0"
+                        IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBool}}" />
+                <Button Content="Cancel" Command="{Binding CancelCommand}"
+                        Style="{StaticResource DangerButton}"
+                        Visibility="{Binding IsBusy, Converter={StaticResource BoolToVis}}" />
+            </StackPanel>
+
+            <!-- Status -->
+            <TextBlock Text="{Binding StatusMessage}" Margin="0,8,0,0"
+                       Foreground="{StaticResource TextSecondaryBrush}" FontSize="12" />
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>
