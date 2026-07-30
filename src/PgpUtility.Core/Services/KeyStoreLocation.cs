@@ -18,8 +18,17 @@ public static class KeyStoreLocation
     /// Linux: <c>$XDG_DATA_HOME/pgputility/keys</c>, falling back to
     /// <c>~/.local/share/pgputility/keys</c>. Lower case, because that is the convention there.
     /// </remarks>
+    /// <summary>
+    /// Overrides the key store location. Set it to keep keys on a removable drive, or to run
+    /// against a scratch store without touching the real one.
+    /// </summary>
+    public const string OverrideVariable = "PGPUTILITY_KEY_STORE";
+
     public static string Default()
     {
+        if (Environment.GetEnvironmentVariable(OverrideVariable) is { Length: > 0 } overridden)
+            return overridden;
+
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
             return Path.Combine(

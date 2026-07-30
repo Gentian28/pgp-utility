@@ -23,6 +23,11 @@
     <PackageVersion Include="Tmds.DBus.Protocol" Version="0.21.3" />
   </ItemGroup>
 
+  <ItemGroup Label="Distribution">
+    <!-- Installers and delta updates for Windows, Linux and macOS from one toolchain. MIT. -->
+    <PackageVersion Include="Velopack" Version="1.2.0" />
+  </ItemGroup>
+
   <ItemGroup Label="Testing">
     <PackageVersion Include="coverlet.collector" Version="6.0.4" />
     <!-- The MIT-community fork of FluentAssertions, under Apache-2.0. FluentAssertions 8.x moved

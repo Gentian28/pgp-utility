@@ -95,8 +95,27 @@ public class KeyStorePermissionTests
     }
 
     [Fact]
+    public void An_override_wins_over_the_platform_default()
+    {
+        string? original = Environment.GetEnvironmentVariable(KeyStoreLocation.OverrideVariable);
+        try
+        {
+            Environment.SetEnvironmentVariable(KeyStoreLocation.OverrideVariable, "/tmp/elsewhere");
+            KeyStoreLocation.Default().Should().Be("/tmp/elsewhere");
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(KeyStoreLocation.OverrideVariable, original);
+        }
+    }
+
+    [Fact]
     public void The_default_location_follows_the_platform_convention()
     {
+        // Guard: an override leaking in from another test would make this assert nothing.
+        Environment.GetEnvironmentVariable(KeyStoreLocation.OverrideVariable)
+            .Should().BeNullOrEmpty();
+
         string path = KeyStoreLocation.Default();
 
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))

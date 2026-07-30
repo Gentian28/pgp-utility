@@ -41,6 +41,7 @@
     <PackageReference Include="Semi.Avalonia" />
     <PackageReference Include="CommunityToolkit.Mvvm" />
     <PackageReference Include="Tmds.DBus.Protocol" />
+    <PackageReference Include="Velopack" />
     <!-- Debug only, so the diagnostics window does not ship in a release build. -->
     <PackageReference Include="Avalonia.Diagnostics">
       <IncludeAssets Condition="'$(Configuration)' != 'Debug'">None</IncludeAssets>
