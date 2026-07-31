@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using PgpUtility.Models;
+using PgpUtility.Services;
 
 namespace PgpUtility.Tests;
 
@@ -43,9 +45,9 @@ public sealed class GnuPgRunner : IDisposable
         psi.ArgumentList.Add("--batch");
         psi.ArgumentList.Add("--yes");
         psi.ArgumentList.Add("--homedir");
-        psi.ArgumentList.Add(Home);
+        psi.ArgumentList.Add(ToGpgPath(Home));
         foreach (string argument in arguments)
-            psi.ArgumentList.Add(argument);
+            psi.ArgumentList.Add(ToGpgPath(argument));
 
         using Process process = Process.Start(psi)
             ?? throw new InvalidOperationException("could not start gpg");
@@ -58,6 +60,64 @@ public sealed class GnuPgRunner : IDisposable
 
         return new Result(process.ExitCode, stdout.Result, stderr.Result);
     }
+
+    /// <summary>
+    /// Rewrites a rooted Windows path into the /c/... form when the gpg on PATH is an MSYS
+    /// build, and returns everything else unchanged.
+    /// </summary>
+    /// <remarks>
+    /// The gpg inside Git for Windows is compiled against the MSYS runtime, and a Windows-style
+    /// path breaks it in version-dependent ways: the build on the CI image treats C:\... as
+    /// relative and fails with "no writable keyring found", while an older local build accepted
+    /// the keyring path and then could not talk to its agent. Handing it /c/... instead makes the
+    /// homedir, the file arguments and gpg-agent all work, which is what lets the
+    /// interoperability tests run on a machine whose only gpg is Git's. A native build (Gpg4win)
+    /// takes C:\... as-is and is left alone.
+    /// </remarks>
+    private static string ToGpgPath(string argument)
+    {
+        if (!GpgIsMsys.Value)
+            return argument;
+
+        bool looksLikeRootedWindowsPath =
+            argument.Length >= 3
+            && char.IsAsciiLetter(argument[0])
+            && argument[1] == ':'
+            && (argument[2] == '\\' || argument[2] == '/');
+        if (!looksLikeRootedWindowsPath)
+            return argument;
+
+        return "/" + char.ToLowerInvariant(argument[0]) + argument[2..].Replace('\\', '/');
+    }
+
+    /// <summary>
+    /// True when the gpg that PATH resolves to is an MSYS build. The msys-2.0.dll sitting next
+    /// to gpg.exe is the marker; Git for Windows and MSYS2 both have it, a native build does not.
+    /// </summary>
+    private static readonly Lazy<bool> GpgIsMsys = new(() =>
+    {
+        if (!OperatingSystem.IsWindows())
+            return false;
+
+        string pathVariable = Environment.GetEnvironmentVariable("PATH") ?? "";
+        foreach (string entry in pathVariable.Split(
+            Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            try
+            {
+                if (!File.Exists(Path.Combine(entry, "gpg.exe")))
+                    continue;
+
+                return File.Exists(Path.Combine(entry, "msys-2.0.dll"));
+            }
+            catch (ArgumentException)
+            {
+                // A malformed PATH entry cannot be the directory gpg runs from. Skip it.
+            }
+        }
+
+        return false;
+    });
 
     /// <summary>
     /// Set this environment variable on any machine where gpg is expected to work, and a probe
@@ -113,21 +173,29 @@ public sealed class GnuPgRunner : IDisposable
             if (!version.Ok)
                 return (false, $"gpg --version exited {version.ExitCode}: {version.All.Trim()}");
 
-            // Then check it can actually read a file at a path we produced, which is what every
-            // test here does and is a separate question from whether the binary runs.
-            //
-            // The gpg bundled with Git for Windows answers --version happily and then fails every
-            // file operation with "error reading ... General error", so a version-only probe
-            // reported usable and the suite failed instead of skipping. Feeding it a file that is
-            // deliberately not a key separates the two outcomes: "no valid OpenPGP data found"
-            // means it read the file and rejected the contents, which is a pass here.
-            using var work = new TempWorkspace();
-            string probeFile = work.Path("probe.txt");
-            File.WriteAllText(probeFile, "not a key, and not meant to be");
+            // Importing a key we generated is the first thing every interoperability test does,
+            // so the probe does exactly that and requires it to succeed. Two weaker probes
+            // shipped before this one and both reported usable while the tests failed:
+            // --version alone said nothing about file operations, and importing a file that was
+            // deliberately not a key produced "no valid OpenPGP data found", which is not the
+            // error a broken homedir produces on a real key. The exit code matters as much as
+            // the message: a gpg that cannot reach its agent still prints "imported: 1" and
+            // then exits 2.
+            GeneratedKeyPair pair = new PgpService().GenerateKeyPairAsync(new KeyGenerationOptions
+            {
+                Name = "Gpg Probe",
+                Email = "gpg-probe@example.com",
+                Passphrase = "probe".ToCharArray(),
+                Algorithm = PgpKeyAlgorithm.Ed25519
+            }).GetAwaiter().GetResult();
 
-            Result import = probe.Run("--import", probeFile);
-            if (import.All.Contains("error reading", StringComparison.OrdinalIgnoreCase))
-                return (false, $"gpg cannot read files at our paths: {import.All.Trim()}");
+            using var work = new TempWorkspace();
+            string keyFile = work.Path("probe-pub.asc");
+            File.WriteAllText(keyFile, pair.PublicKey);
+
+            Result import = probe.Run("--import", keyFile);
+            if (!import.Ok || !import.All.Contains("imported", StringComparison.OrdinalIgnoreCase))
+                return (false, $"gpg could not import a key we generated: {import.All.Trim()}");
 
             return (true, "");
         }
@@ -175,7 +243,7 @@ public sealed class GnuPgRunner : IDisposable
                 RedirectStandardError = true
             };
             psi.ArgumentList.Add("--homedir");
-            psi.ArgumentList.Add(Home);
+            psi.ArgumentList.Add(ToGpgPath(Home));
             psi.ArgumentList.Add("--kill");
             psi.ArgumentList.Add("all");
             using Process? kill = Process.Start(psi);

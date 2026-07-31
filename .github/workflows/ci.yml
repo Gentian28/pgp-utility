@@ -34,7 +34,9 @@ jobs:
 
       # Windows already has gpg inside Git for Windows, it is simply not on PATH. `choco install
       # gnupg` hung for over twenty minutes on the first run of this workflow while the other two
-      # legs finished in under two, so this uses what is already on the image.
+      # legs finished in under two, so this uses what is already on the image. It is an MSYS
+      # build that rejects Windows-style paths; GnuPgRunner detects that and hands it /c/...
+      # paths instead.
       - name: Put GnuPG on PATH (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
