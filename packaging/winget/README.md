@@ -1,35 +1,37 @@
 # winget manifests
 
-Drafts for submitting PGP Utility to the winget community repository. They cannot be submitted
-until the v1.0.0 GitHub release is public, because winget validates the installer URL and its
-hash against the live download.
+One folder per released version, `Gentian28.PgpUtility` as the permanent package identity, same
+conventions as resume-builder's `packaging/winget/`. Keep the two repos in step rather than
+letting them drift.
 
-## Before submitting
+## Releasing a new version
 
-1. Publish the v1.0.0 release and confirm `PgpUtility-win-Setup.exe` downloads from the URL in
-   the installer manifest.
-2. Replace the two `TODO` values in `GentianShkembi.PgpUtility.installer.yaml`: the SHA256 from
-   `SHA256SUMS-win.txt` on the release page, and the release date.
-3. Install the release build on a clean machine or VM and check Apps & Features. The
-   `AppsAndFeaturesEntries` block must match the entry it writes exactly, DisplayName and
-   DisplayVersion included, or winget will not recognise the app as installed.
-4. Validate locally:
+`new-version.ps1` does the mechanical part. Run it **after** the GitHub release is published,
+because it reads the released `SHA256SUMS-win.txt` so the hash always matches what people
+actually download:
 
-   ```
-   winget validate --manifest packaging/winget
-   winget install --manifest packaging/winget
-   ```
+```powershell
+.\packaging\winget\new-version.ps1 -Version 1.1.0
+winget install --manifest packaging\winget\1.1.0   # verify it really installs
+wingetcreate submit --token <github-PAT> packaging\winget\1.1.0
+```
 
-5. Submit a pull request to https://github.com/microsoft/winget-pkgs placing these three files
-   under `manifests/g/GentianShkembi/PgpUtility/1.0.0/`, or run `wingetcreate` and paste the
-   values in. New packages get a human review, which can take a week or two.
+Local manifest installs are disabled by default; enable once from an administrator PowerShell
+with `winget settings --enable LocalManifestFiles`. The install itself is per-user and needs no
+elevation.
 
-## Things decided here that are hard to change later
+`.github/workflows/winget.yml` automates all of this on every published release, but stays inert
+until two things exist: a repository variable `WINGET_AUTO_SUBMIT` set to `true`, and a
+`WINGET_TOKEN` secret holding a PAT with `public_repo` scope. Leave it off until the first
+submission has merged.
 
-- **PackageIdentifier `GentianShkembi.PgpUtility`** is permanent once the first version is
-  merged. Renaming means deprecating the package and starting over.
-- The installer is Velopack's Setup.exe: per-user scope, silent via `--silent`. Velopack apps
-  self-update, so expect installed versions to drift ahead of the manifest; `UpgradeBehavior:
-  install` keeps `winget upgrade` harmless in that case.
+## The first submission
 
-Each new release repeats steps 2 to 5 with a bumped `PackageVersion` in all three files.
+The first PR to microsoft/winget-pkgs carries package-identity review (publisher, package ID,
+licence, installer type) and a human moderator, so expect a wait measured in weeks. Version bumps
+after that ride through on the established identity. The account-level CLA is already signed
+from the resume-builder submission.
+
+Test-install the exact released build before submitting. Resume-builder shipped two versions
+with an off-screen-window bug that only a real install caught; submitting either would have put
+a broken build in Microsoft's index.
