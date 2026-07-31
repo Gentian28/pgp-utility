@@ -110,6 +110,14 @@ shasum -a 256 -c SHA256SUMS-osx.txt    # macOS
 Get-FileHash PgpUtility-win-Setup.exe -Algorithm SHA256   # Windows, compare by eye
 ```
 
+### Code signing
+
+Free code signing for Windows builds is provided by [SignPath.io](https://signpath.io/), with the
+certificate issued by the [SignPath Foundation](https://signpath.org/).
+
+*Status: application pending.* Until it is granted, the warnings above apply and the checksums
+are the verification that counts.
+
 ## Where your keys are stored
 
 | Platform | Location |
