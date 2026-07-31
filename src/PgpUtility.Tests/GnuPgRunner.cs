@@ -108,10 +108,28 @@ public sealed class GnuPgRunner : IDisposable
         try
         {
             using var probe = new GnuPgRunner();
+
             Result version = probe.Run("--version");
-            return version.Ok
-                ? (true, "")
-                : (false, $"gpg --version exited {version.ExitCode}: {version.All.Trim()}");
+            if (!version.Ok)
+                return (false, $"gpg --version exited {version.ExitCode}: {version.All.Trim()}");
+
+            // Then check it can actually read a file at a path we produced, which is what every
+            // test here does and is a separate question from whether the binary runs.
+            //
+            // The gpg bundled with Git for Windows answers --version happily and then fails every
+            // file operation with "error reading ... General error", so a version-only probe
+            // reported usable and the suite failed instead of skipping. Feeding it a file that is
+            // deliberately not a key separates the two outcomes: "no valid OpenPGP data found"
+            // means it read the file and rejected the contents, which is a pass here.
+            using var work = new TempWorkspace();
+            string probeFile = work.Path("probe.txt");
+            File.WriteAllText(probeFile, "not a key, and not meant to be");
+
+            Result import = probe.Run("--import", probeFile);
+            if (import.All.Contains("error reading", StringComparison.OrdinalIgnoreCase))
+                return (false, $"gpg cannot read files at our paths: {import.All.Trim()}");
+
+            return (true, "");
         }
         catch (Exception ex)
         {
