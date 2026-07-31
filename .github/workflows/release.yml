@@ -21,6 +21,7 @@ jobs:
   package:
     name: package ${{ matrix.rid }}
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
     strategy:
       fail-fast: false
       matrix:
@@ -154,6 +155,7 @@ jobs:
     name: publish GitHub release
     needs: package
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       # Must come first. actions/checkout cleans the workspace, so running it after the artifacts
       # are downloaded and flattened would delete them.

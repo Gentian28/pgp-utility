@@ -10,6 +10,9 @@ jobs:
   build:
     name: build & test (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+    # The suite takes about a minute. This is a backstop against a hung step burning hours of
+    # runner time, which is exactly what happened the first time this workflow ran.
+    timeout-minutes: 20
     strategy:
       # Don't cancel the other legs the moment one fails. When something breaks on exactly one
       # OS, the passing legs are the useful half of the signal.
@@ -27,10 +30,22 @@ jobs:
 
       # The interoperability tests skip when gpg is missing, so without this the suite would go
       # green having proved nothing about the claim that is hardest to get right. Only Ubuntu
-      # ships it already.
-      - name: Install GnuPG (Windows)
+      # ships gpg ready to use.
+
+      # Windows already has gpg inside Git for Windows, it is simply not on PATH. `choco install
+      # gnupg` hung for over twenty minutes on the first run of this workflow while the other two
+      # legs finished in under two, so this uses what is already on the image.
+      - name: Put GnuPG on PATH (Windows)
         if: runner.os == 'Windows'
-        run: choco install gnupg -y --no-progress
+        shell: pwsh
+        run: |
+          $dir = "C:\Program Files\Git\usr\bin"
+          if (Test-Path (Join-Path $dir "gpg.exe")) {
+            Add-Content -Path $env:GITHUB_PATH -Value $dir
+            & (Join-Path $dir "gpg.exe") --version | Select-Object -First 1
+          } else {
+            Write-Host "::warning::no gpg on this image, the interoperability tests will skip"
+          }
 
       - name: Install GnuPG (macOS)
         if: runner.os == 'macOS'
@@ -65,6 +80,7 @@ jobs:
     name: publish ${{ matrix.rid }}
     needs: build
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
@@ -121,6 +137,7 @@ jobs:
 
   vulnerable-packages:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     steps:
       - uses: actions/checkout@v4
