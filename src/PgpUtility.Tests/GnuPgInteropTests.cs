@@ -172,7 +172,15 @@ public class GnuPgInteropTests
 
         // mdc_method appears only on a tag 18 integrity protected packet, so its presence is gpg
         // confirming the integrity check is really there rather than us asserting our own output.
-        GnuPgRunner.Result packets = gpg.Run("--list-packets", cipher);
+        //
+        // The loopback arguments are not decoration. The secret key is already imported, so
+        // --list-packets tries to decrypt the message to list what is inside, and without them
+        // the agent raises a pinentry dialog. On a headless runner that prompt fails fast and
+        // the assertion below still passes; on a developer's desktop the dialog sits there and
+        // the suite hangs until someone cancels it.
+        GnuPgRunner.Result packets = gpg.Run(
+            "--pinentry-mode", "loopback", "--passphrase", GeneratedKeys.PassphraseText,
+            "--list-packets", cipher);
         packets.StandardOutput.Should().Contain("mdc_method");
 
         // gpg names the session cipher on stderr while decrypting.

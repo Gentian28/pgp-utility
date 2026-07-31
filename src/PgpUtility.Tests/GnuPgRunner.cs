@@ -174,13 +174,18 @@ public sealed class GnuPgRunner : IDisposable
                 return (false, $"gpg --version exited {version.ExitCode}: {version.All.Trim()}");
 
             // Importing a key we generated is the first thing every interoperability test does,
-            // so the probe does exactly that and requires it to succeed. Two weaker probes
-            // shipped before this one and both reported usable while the tests failed:
-            // --version alone said nothing about file operations, and importing a file that was
-            // deliberately not a key produced "no valid OpenPGP data found", which is not the
-            // error a broken homedir produces on a real key. The exit code matters as much as
-            // the message: a gpg that cannot reach its agent still prints "imported: 1" and
-            // then exits 2.
+            // so the probe does exactly that. Two weaker probes shipped before this one and both
+            // reported usable while the tests failed: --version alone said nothing about file
+            // operations, and importing a file that was deliberately not a key produced "no
+            // valid OpenPGP data found", which is not the error a broken homedir produces on a
+            // real key.
+            //
+            // The check is on the message, deliberately not the exit code. A gpg whose agent
+            // cannot start, which is normal on CI runners (macOS, and any temp directory deep
+            // enough to push the agent socket past the 108 byte sun_path limit), still imports
+            // the key, prints "imported: 1", and exits 2. The public key tests pass on exactly
+            // such a machine because they never assert the import's exit code; a probe that
+            // required exit 0 here skipped them on every runner they were meant for.
             GeneratedKeyPair pair = new PgpService().GenerateKeyPairAsync(new KeyGenerationOptions
             {
                 Name = "Gpg Probe",
@@ -194,8 +199,14 @@ public sealed class GnuPgRunner : IDisposable
             File.WriteAllText(keyFile, pair.PublicKey);
 
             Result import = probe.Run("--import", keyFile);
-            if (!import.Ok || !import.All.Contains("imported", StringComparison.OrdinalIgnoreCase))
+            if (!import.All.Contains("imported", StringComparison.OrdinalIgnoreCase))
                 return (false, $"gpg could not import a key we generated: {import.All.Trim()}");
+
+            // The tests do assert exit codes on listing and encrypting, so require a clean exit
+            // from the one of those the probe can do without a recipient.
+            Result listed = probe.Run("--list-keys");
+            if (!listed.Ok)
+                return (false, $"gpg --list-keys exited {listed.ExitCode}: {listed.All.Trim()}");
 
             return (true, "");
         }
