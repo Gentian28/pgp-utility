@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.1.0
+
+- **Theme choice.** A System / Light / Dark selector in the status bar. The default follows the
+  operating system's mode, and the choice is remembered between runs.
+- **The window keeps itself on screen.** On a scaled display the default window size could exceed
+  the screen, and centring it then pushed the title bar off the top edge, leaving the window
+  impossible to move, minimise or close. The window now shrinks to the working area and centres
+  inside it.
+
 ## 1.0.0
 
 First public release. Cross-platform, and a substantial rework of the cryptography since the
