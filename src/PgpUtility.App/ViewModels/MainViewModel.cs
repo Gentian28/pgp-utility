@@ -20,6 +20,19 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty]
     private bool _isLogPanelVisible;
 
+    // 0 follows the system, 1 light, 2 dark, matching the order of the items in the status bar
+    // ComboBox. Starts from the persisted choice so the box shows what the app is doing.
+    [ObservableProperty]
+    private int _themeIndex;
+
+    private readonly ThemeService _themes;
+
+    partial void OnThemeIndexChanged(int value)
+    {
+        _themes.Apply(value);
+        _themes.Save(value);
+    }
+
     // Every tab reads the same key store, so a key added on one has to appear on the others
     // without a restart. Refreshing on tab change is cheap and needs no change notification
     // plumbed through the store.
@@ -44,8 +57,16 @@ public partial class MainViewModel : ViewModelBase
         IPgpSignatureService signatures,
         IKeyStoreService keyStoreService,
         IFilePickerService filePicker,
-        IClipboardService clipboard)
+        IClipboardService clipboard,
+        ThemeService themes)
     {
+        _themes = themes;
+
+        // Through the backing field: the property setter would save the value straight back to
+        // the file it was just read from.
+        _themeIndex = themes.LoadIndex();
+        themes.Apply(_themeIndex);
+
         EncryptDecryptVm = new EncryptDecryptViewModel(pgpService, keyStoreService, filePicker, AddLog);
         SignVerifyVm = new SignVerifyViewModel(signatures, keyStoreService, filePicker, AddLog);
         TextVm = new TextViewModel(pgpService, signatures, keyStoreService, clipboard, AddLog);

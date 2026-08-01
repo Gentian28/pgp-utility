@@ -36,7 +36,8 @@ public partial class App : Application
                 new PgpSignatureService(),
                 keyStore,
                 new StorageFilePickerService(TopLevel),
-                new ClipboardService(TopLevel));
+                new ClipboardService(TopLevel),
+                new ThemeService());
 
             desktop.MainWindow = window;
         }

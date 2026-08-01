@@ -25,6 +25,14 @@
         <ToggleButton DockPanel.Dock="Right" Content="Log"
                       IsChecked="{Binding IsLogPanelVisible}"
                       Padding="10,2" FontSize="12" />
+        <ComboBox DockPanel.Dock="Right" Margin="0,0,8,0"
+                  SelectedIndex="{Binding ThemeIndex}"
+                  FontSize="12" Padding="10,2"
+                  AutomationProperties.Name="Theme">
+          <ComboBoxItem Content="System" />
+          <ComboBoxItem Content="Light" />
+          <ComboBoxItem Content="Dark" />
+        </ComboBox>
         <TextBlock Text="{Binding StatusMessage}" VerticalAlignment="Center"
                    TextTrimming="CharacterEllipsis"
                    Foreground="{DynamicResource MutedTextBrush}" FontSize="12" />
