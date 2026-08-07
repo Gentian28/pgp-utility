@@ -112,10 +112,10 @@ Get-FileHash PgpUtility-win-Setup.exe -Algorithm SHA256   # Windows, compare by 
 
 ### Code signing
 
-Free code signing for Windows builds is provided by [SignPath.io](https://signpath.io/), with the
-certificate issued by the [SignPath Foundation](https://signpath.org/).
-
-*Status: application pending.* Until it is granted, the warnings above apply and the checksums
+An application to the [SignPath Foundation](https://signpath.org/) free code-signing programme
+was declined in August 2026. The programme requires public adoption signals (stars, forks,
+independent references) that a newly published project does not yet have, and it will be
+reapplied for once the project has them. Until then the warnings above apply and the checksums
 are the verification that counts.
 
 ## Where your keys are stored
