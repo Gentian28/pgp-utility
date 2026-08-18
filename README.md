@@ -62,7 +62,18 @@ assumed.
 
 ## Install
 
-Download from the [latest release](https://github.com/Gentian28/pgp-utility/releases/latest).
+On Windows, winget is the shortest route:
+
+```
+winget install Gentian28.PgpUtility
+```
+
+That currently installs **1.0.0**. The community repository accepted the first submission on
+2026-08-18, eighteen days after it was opened, and the manifest in review that whole time was
+written against 1.0.0, so the index is one version behind this repository until a bump lands.
+For 1.1.0 today, take the release below.
+
+Otherwise download from the [latest release](https://github.com/Gentian28/pgp-utility/releases/latest).
 
 | Platform | File |
 |---|---|
