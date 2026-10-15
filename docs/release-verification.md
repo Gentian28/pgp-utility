@@ -29,6 +29,15 @@ including existing-store migration and a backup restore. Check keyboard access, 
 and each tab at a narrow window size against the approved design. Do not equate a ten-second startup
 check with an end-to-end installer or UI test.
 
+Run the `Native package acceptance` workflow on the same candidate. It uses fresh hosted runners
+and synthetic fixtures to exercise the published 1.1.0 installer or AppImage, upgrade with the
+candidate's production package identity, open a legacy key store, decrypt an older message, check
+its signature, migrate filenames, and rehearse backup recovery. Windows also checks uninstall and
+portable startup; macOS checks the installed and portable bundles. Linux uses AppImage extract-and-run
+so the check does not depend on a FUSE mount. Uploaded reports describe the checks that actually ran.
+The installer harness refuses ordinary local execution and existing production installations.
+It does not check a human installation flow, Gatekeeper/SmartScreen acceptance or UI appearance.
+
 Review the compatibility and security policy for the version being released. Handle security reports
 privately and arrange disclosure with remediation. Screenshots must use synthetic identities and a
 scratch store. Keep the design a proposal while release verification is outstanding; after shipping,

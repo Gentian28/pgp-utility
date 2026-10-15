@@ -1,0 +1,103 @@
+name: Native package acceptance
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  acceptance:
+    name: accept ${{ matrix.rid }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: windows-latest, rid: win-x64, channel: win, exe: PgpUtility.App.exe }
+          - { os: ubuntu-latest, rid: linux-x64, channel: linux, exe: PgpUtility.App }
+          - { os: macos-latest, rid: osx-arm64, channel: osx, exe: PgpUtility.App }
+          - { os: macos-15-intel, rid: osx-x64, channel: osx-x64, exe: PgpUtility.App }
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          dotnet-version: 10.0.3xx
+      - name: Prepare Windows GnuPG
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $directory = 'C:\Program Files\Git\usr\bin'
+          if (-not (Test-Path (Join-Path $directory 'gpg.exe'))) { throw 'GnuPG is required.' }
+          Add-Content -Path $env:GITHUB_PATH -Value $directory
+      - name: Prepare macOS GnuPG
+        if: runner.os == 'macOS'
+        run: brew install gnupg
+      - name: Prepare Linux display and GnuPG
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y gnupg libfontconfig1 libice6 libsm6 libx11-6 xvfb
+      - name: Dependency advisory gate
+        if: runner.os == 'Linux'
+        shell: pwsh
+        run: ./scripts/check-vulnerabilities.ps1
+      - name: Build exact candidate with zero warnings
+        run: dotnet build PgpUtility.slnx -c Release -warnaserror
+      - name: Required GnuPG and behavioral comparisons
+        env:
+          PGPUTILITY_REQUIRE_GPG: '1'
+        run: dotnet test PgpUtility.slnx -c Release --no-build --logger 'trx;LogFileName=acceptance.trx'
+      - name: Publish single file
+        run: dotnet publish src/PgpUtility.App -c Release -r ${{ matrix.rid }} -o single-file -warnaserror
+      - name: Single-file startup and index recovery
+        shell: bash
+        run: |
+          count=$(find single-file -maxdepth 1 -type f | wc -l)
+          test "$count" -eq 1
+          display=()
+          if [ '${{ runner.os }}' = Linux ]; then display=(xvfb-run -a); fi
+          "${display[@]}" python scripts/smoke-startup.py 'single-file/${{ matrix.exe }}'
+          "${display[@]}" python scripts/smoke-startup.py 'single-file/${{ matrix.exe }}' --corrupt-index
+      - name: Resolve central versions and install matching packer
+        id: versions
+        shell: pwsh
+        run: |
+          [xml]$packages = Get-Content Directory.Packages.props
+          $packer = ($packages.Project.ItemGroup.PackageVersion | Where-Object Include -eq 'Velopack').Version
+          [xml]$build = Get-Content Directory.Build.props
+          $version = $build.Project.PropertyGroup.Version | Where-Object { $_ }
+          if (-not $packer -or $version -notmatch '^\d+\.\d+\.\d+$') { throw 'Invalid central versions.' }
+          "version=$version" >> $env:GITHUB_OUTPUT
+          dotnet tool install -g vpk --version $packer
+          if ($LASTEXITCODE -ne 0) { throw 'Packer installation failed.' }
+      - name: Publish package contents
+        run: dotnet publish src/PgpUtility.App -c Release -r ${{ matrix.rid }} -p:PublishSingleFile=false -o package-input -warnaserror
+      - name: Package production identity
+        shell: bash
+        run: |
+          brand=()
+          case '${{ runner.os }}' in
+            Windows) brand=(--icon packaging/icon/icon.ico --splashImage packaging/icon/splash.png --splashProgressColor '#14B8A6') ;;
+            macOS) brand=(--icon packaging/icon/icon.icns) ;;
+          esac
+          vpk pack --packId PgpUtility --packVersion '${{ steps.versions.outputs.version }}' \
+            --packDir package-input --mainExe '${{ matrix.exe }}' --packTitle 'PGP Utility' \
+            --packAuthors 'Gentian Shkembi' "${brand[@]}" --channel '${{ matrix.channel }}' --outputDir artifacts
+      - name: Build synthetic migration and recovery fixture
+        run: dotnet build scripts/AcceptanceFixtures -c Release -o acceptance-fixture -warnaserror
+      - name: Validate real packages and published-version upgrade
+        shell: bash
+        run: |
+          display=()
+          if [ '${{ runner.os }}' = Linux ]; then display=(xvfb-run -a); fi
+          "${display[@]}" python scripts/validate-package.py --artifacts artifacts --rid '${{ matrix.rid }}' \
+            --fixture acceptance-fixture/AcceptanceFixtures.dll --version '${{ steps.versions.outputs.version }}'
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: acceptance-${{ matrix.rid }}
+          path: |
+            artifacts/**
+            **/TestResults/acceptance.trx
+          if-no-files-found: warn
+          retention-days: 1

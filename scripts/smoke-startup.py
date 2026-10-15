@@ -1,15 +1,27 @@
 """Check desktop startup with an isolated store, without touching a real user's keys."""
+import argparse
+from contextlib import nullcontext
 import os
 from pathlib import Path
 import subprocess
 import sys
 import tempfile
 
-executable = Path(sys.argv[1]).resolve(strict=True)
-with tempfile.TemporaryDirectory(prefix="pgputility-startup-") as store:
-    if "--corrupt-index" in sys.argv[2:]:
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument("executable")
+parser.add_argument("--corrupt-index", action="store_true")
+parser.add_argument("--store", type=Path, help="Use an existing synthetic store without deleting it.")
+arguments = parser.parse_args()
+if arguments.store and arguments.corrupt_index:
+    parser.error("Corrupt-index checks require a new temporary store.")
+if arguments.store and not arguments.store.is_dir():
+    parser.error("The synthetic store must already exist.")
+executable = Path(arguments.executable).resolve(strict=True)
+workspace = nullcontext(arguments.store.resolve()) if arguments.store else tempfile.TemporaryDirectory(prefix="pgputility-startup-")
+with workspace as store:
+    if arguments.corrupt_index:
         Path(store, "index.json").write_text("{broken", encoding="utf-8")
-    environment = dict(os.environ, PGPUTILITY_KEY_STORE=store)
+    environment = dict(os.environ, PGPUTILITY_KEY_STORE=str(store))
     options = {}
     if os.name == "nt":
         startup = subprocess.STARTUPINFO()
@@ -22,7 +34,7 @@ with tempfile.TemporaryDirectory(prefix="pgputility-startup-") as store:
     except subprocess.TimeoutExpired:
         process.kill()
         process.communicate(timeout=10)
-        if "--corrupt-index" in sys.argv[2:] and not list(Path(store).glob("index.corrupt.*.json")):
+        if arguments.corrupt_index and not list(Path(store).glob("index.corrupt.*.json")):
             raise SystemExit("The corrupt index was not preserved during startup recovery.")
         print("The app stayed alive through the startup check with an isolated key store.")
     else:
