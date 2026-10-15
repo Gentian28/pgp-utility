@@ -39,6 +39,18 @@ public partial class App : Application
                 new ClipboardService(TopLevel),
                 new ThemeService());
 
+            // A live process can be deadlocked before showing a window. Native release checks
+            // require an explicit signal from Opened, after store and view-model initialization.
+            string? readyFile = Environment.GetEnvironmentVariable("PGPUTILITY_STARTUP_READY_FILE");
+            if (!string.IsNullOrWhiteSpace(readyFile))
+            {
+                window.Opened += async (_, _) =>
+                {
+                    try { await FileTransaction.WriteTextAsync(readyFile, "ready"); }
+                    catch (Exception exception) { System.Diagnostics.Trace.TraceError("Startup readiness signal failed: {0}", exception.Message); }
+                };
+            }
+
             desktop.MainWindow = window;
         }
 

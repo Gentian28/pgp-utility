@@ -28,6 +28,9 @@ release assets, hashes and attestations. Exercise installer and portable startup
 including existing-store migration and a backup restore. Check keyboard access, light and dark themes,
 and each tab at a narrow window size against the approved design. Do not equate a ten-second startup
 check with an end-to-end installer or UI test.
+The candidate startup check requires a `PGPUTILITY_STARTUP_READY_FILE` signal from the main window's
+Opened event; a live but deadlocked process fails. Only the published 1.1.0 baseline, which predates
+that signal, uses an explicitly labeled legacy process-liveness check during upgrade acceptance.
 
 Run the `Native package acceptance` workflow on the same candidate. It uses fresh hosted runners
 and synthetic fixtures to exercise the published 1.1.0 installer or AppImage, upgrade with the

@@ -51,7 +51,8 @@ public sealed class FileTransaction : IDisposable
         CancellationToken cancellationToken = default)
     {
         using var transaction = new FileTransaction(path);
-        await transaction.Stream.WriteAsync(Encoding.UTF8.GetBytes(text), cancellationToken);
+        // Store construction and metadata refresh can synchronously wait on the desktop thread.
+        await transaction.Stream.WriteAsync(Encoding.UTF8.GetBytes(text), cancellationToken).ConfigureAwait(false);
         transaction.Commit(replaceExisting, cancellationToken);
     }
 
@@ -60,7 +61,7 @@ public sealed class FileTransaction : IDisposable
     {
         using var input = File.OpenRead(source);
         using var transaction = new FileTransaction(destination);
-        await input.CopyToAsync(transaction.Stream, cancellationToken);
+        await input.CopyToAsync(transaction.Stream, cancellationToken).ConfigureAwait(false);
         transaction.Commit(replaceExisting, cancellationToken);
     }
 

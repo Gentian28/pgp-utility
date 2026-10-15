@@ -43,9 +43,10 @@ def run(command, timeout=120):
     subprocess.run([str(part) for part in command], env=environment, check=True, timeout=timeout)
 
 
-def smoke(executable, existing=False):
+def smoke(executable, existing=False, legacy=False):
     run([sys.executable, repository / "scripts/smoke-startup.py", executable,
-         *(["--store", data / "keys"] if existing else [])], timeout=45)
+         *(["--store", data / "keys"] if existing else []),
+         *(["--legacy-process-only"] if legacy else [])], timeout=45)
     if not existing:
         run([sys.executable, repository / "scripts/smoke-startup.py", executable, "--corrupt-index"], timeout=45)
 
@@ -129,8 +130,8 @@ if expected_system == "Windows":
     run([previous_asset("PgpUtility-win-Setup.exe"), "--silent", "--installto", install, "--log", workspace / "previous-install.log"])
     stop_installer_launch()
     executable = install / "current/PgpUtility.App.exe"
-    smoke(executable, existing=True)
-    report["checks"].append("previous published installer and populated-store startup")
+    smoke(executable, existing=True, legacy=True)
+    report["checks"].append("previous published installer and legacy process-liveness check")
     run([artifacts / "PgpUtility-win-Setup.exe", "--silent", "--installto", install, "--log", workspace / "upgrade-install.log"])
     stop_installer_launch()
     check_version(install / "current")
@@ -159,8 +160,8 @@ elif expected_system == "Darwin":
     run(["sudo", "installer", "-pkg", previous_asset(f"PgpUtility-{channel}-Setup.pkg"), "-target", "/"])
     stop_installer_launch()
     app = find_mac_app(applications)
-    smoke(app / "Contents/MacOS/PgpUtility.App", existing=True)
-    report["checks"].append("previous published pkg and populated-store startup")
+    smoke(app / "Contents/MacOS/PgpUtility.App", existing=True, legacy=True)
+    report["checks"].append("previous published pkg and legacy process-liveness check")
     run(["sudo", "installer", "-pkg", artifacts / f"PgpUtility-{channel}-Setup.pkg", "-target", "/"])
     stop_installer_launch()
     app = find_mac_app(applications)
@@ -179,13 +180,13 @@ else:
     installed = workspace / "PgpUtility.AppImage"
     shutil.copyfile(previous_asset("PgpUtility.AppImage"), installed)
     installed.chmod(0o755)
-    smoke(installed, existing=True)
+    smoke(installed, existing=True, legacy=True)
     shutil.copyfile(artifacts / "PgpUtility.AppImage", installed)
     installed.chmod(0o755)
     smoke(installed, existing=True)
     smoke(installed)
     run(["dotnet", fixture, "verify", data])
-    report["checks"].append("previous/current AppImage extract-and-run, startup, historical access, migration and restore")
+    report["checks"].append("previous AppImage legacy process check; current window-open startup, historical access, migration and restore")
 
 verify_new_checksums()
 report["checks"].append("packaged asset checksums")

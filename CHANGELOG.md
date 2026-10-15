@@ -6,6 +6,7 @@
 - Preserve existing files and use private, unique staging files for all outputs and exports.
 - Freeze active batch settings, honor streaming cancellation and discard stale verification results.
 - Recover damaged key indexes and serialize store updates across app instances.
+- Open existing key stores without waiting for blocked desktop-thread file-copy callbacks.
 - Preserve current private-key protection during reimport or restore and validate recovery material before export.
 - Back up and restore key stores, extend expiry, change passphrases and manage revocation certificates.
 - Confirm deletions against the full fingerprint and distinguish unavailable verification from a mismatch.
