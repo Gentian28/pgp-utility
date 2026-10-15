@@ -11,6 +11,7 @@
 - Correct narrow-window clipping and accessible names for key rows and input controls.
 - Preserve the selected key while refreshing unchanged key choices after an operation.
 - Keep verification details reachable at short window heights and disable copying empty output.
+- Clear the footer verdict when its input changes and show only the active tab's current status.
 - Preserve current private-key protection during reimport or restore and validate recovery material before export.
 - Back up and restore key stores, extend expiry, change passphrases and manage revocation certificates.
 - Confirm deletions against the full fingerprint and distinguish unavailable verification from a mismatch.

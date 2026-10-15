@@ -35,7 +35,7 @@
           <ComboBoxItem Content="Light" />
           <ComboBoxItem Content="Dark" />
         </ComboBox>
-        <TextBlock Text="{Binding StatusMessage}" VerticalAlignment="Center"
+        <TextBlock Text="{Binding CurrentTabStatus.StatusMessage}" VerticalAlignment="Center"
                    TextTrimming="CharacterEllipsis"
                    Foreground="{DynamicResource MutedTextBrush}" FontSize="12" />
       </DockPanel>

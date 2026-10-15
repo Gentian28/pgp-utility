@@ -45,9 +45,18 @@ public partial class MainViewModel : ViewModelBase
         SignVerifyVm.RefreshKeys();
         TextVm.RefreshKeys();
         if (!KeyManagementVm.IsBusy) KeyManagementVm.RefreshKeys();
+        CurrentTabStatus.Follow(value switch
+        {
+            1 => TextVm,
+            2 => SignVerifyVm,
+            3 => KeyManagementVm,
+            4 => KeyGenerationVm,
+            _ => EncryptDecryptVm
+        });
     }
 
     public ObservableCollection<string> LogEntries { get; } = new();
+    public ActiveTabStatus CurrentTabStatus { get; } = new();
 
     public EncryptDecryptViewModel EncryptDecryptVm { get; }
     public SignVerifyViewModel SignVerifyVm { get; }
@@ -76,7 +85,10 @@ public partial class MainViewModel : ViewModelBase
         KeyManagementVm = new KeyManagementViewModel(keyStoreService, pgpService, filePicker, clipboard, AddLog);
         KeyManagementVm.GenerationRequested += (_, _) => SelectedTabIndex = 4;
         KeyGenerationVm = new KeyGenerationViewModel(pgpService, keyStoreService, filePicker, clipboard, AddLog);
+        CurrentTabStatus.Follow(EncryptDecryptVm);
         foreach (string warning in keyStoreService.Warnings) AddLog(warning);
+        if (keyStoreService.Warnings.Count > 0)
+            EncryptDecryptVm.StatusMessage = string.Join(" ", keyStoreService.Warnings);
     }
 
     public void AddLog(string message)
@@ -89,7 +101,6 @@ public partial class MainViewModel : ViewModelBase
             while (LogEntries.Count > MaxLogEntries)
                 LogEntries.RemoveAt(0);
 
-            StatusMessage = message;
         });
     }
 }

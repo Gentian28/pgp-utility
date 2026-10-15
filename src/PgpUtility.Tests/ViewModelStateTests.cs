@@ -159,6 +159,38 @@ public class ViewModelStateTests(GeneratedKeys keys)
     private static SignatureVerification Good() => SignatureVerification.Valid("good", "synthetic", "Test", DateTime.UtcNow);
 
     [Fact]
+    public async Task Footer_clears_with_edited_verdict_and_tracks_only_the_active_tab()
+    {
+        using var work = new TempWorkspace();
+        var store = await Store(work);
+        var signatures = new DeferredSignatures();
+        var log = new List<string>();
+        var text = new TextViewModel(keys.Service, signatures, store, new Clipboard(), log.Add)
+        { SelectedAction = TextViewModel.TextAction.Verify, Input = "original", SelectedKeyId = store.GetAllKeys().Single().KeyId };
+        var files = new SignVerifyViewModel(signatures, store, new Picker(), log.Add);
+        var footer = new ActiveTabStatus();
+        footer.Follow(text);
+        int notifications = 0;
+        footer.PropertyChanged += (_, _) => notifications++;
+        Task running = text.RunCommand.ExecuteAsync(null);
+        await signatures.Started.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        signatures.Finish.SetResult(Good());
+        await running;
+        footer.StatusMessage.Should().Be("good");
+        int beforeEdit = notifications;
+        text.Input = "changed";
+        footer.StatusMessage.Should().BeEmpty();
+        notifications.Should().BeGreaterThan(beforeEdit, "the footer binding must clear immediately");
+        log.Should().Contain("good", "historical log entries remain available without becoming the current verdict");
+        footer.Follow(files);
+        files.StatusMessage = "Unable to check the signature";
+        text.StatusMessage = "An operation on another tab completed";
+        footer.StatusMessage.Should().Be("Unable to check the signature");
+        footer.Follow(text);
+        footer.StatusMessage.Should().Be("An operation on another tab completed");
+    }
+
+    [Fact]
     public async Task Refresh_keeps_unchanged_key_choice_objects_and_does_not_reset_the_picker()
     {
         using var work = new TempWorkspace();
