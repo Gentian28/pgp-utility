@@ -72,7 +72,7 @@
 
         <StackPanel Spacing="4">
           <DockPanel>
-            <Button DockPanel.Dock="Right" Content="Copy" Command="{Binding CopyPublicKeyCommand}" />
+            <Button DockPanel.Dock="Right" Content="Copy" Command="{Binding CopyPublicKeyCommand}" AutomationProperties.Name="Copy generated public key" />
             <TextBlock Text="Public key" Classes="sectionHeader" VerticalAlignment="Center" />
           </DockPanel>
           <TextBox Classes="keyBlock" Text="{Binding GeneratedPublicKey, Mode=OneWay}" AutomationProperties.Name="Generated public key" />
@@ -81,28 +81,29 @@
 
         <Expander Header="Reveal private key" HorizontalAlignment="Stretch">
         <StackPanel Spacing="4">
+          <TextBlock Classes="warning"
+                     Text="Never share this. Anyone holding it and the passphrase can read everything sent to you. Clipboard history may keep copied private material." />
           <DockPanel>
-            <Button DockPanel.Dock="Right" Content="Copy" Command="{Binding CopyPrivateKeyCommand}" />
+            <Button DockPanel.Dock="Right" Content="Copy" Command="{Binding CopyPrivateKeyCommand}" AutomationProperties.Name="Copy generated private key" />
             <TextBlock Text="Private key" Classes="sectionHeader" VerticalAlignment="Center" />
           </DockPanel>
           <TextBox Classes="keyBlock" Text="{Binding GeneratedPrivateKey, Mode=OneWay}" AutomationProperties.Name="Generated private key" />
-          <TextBlock Classes="warning"
-                     Text="Never share this. Anyone holding it and the passphrase can read everything sent to you. Clipboard history may keep copied private material." />
         </StackPanel>
         </Expander>
 
         <Expander Header="Reveal revocation certificate" HorizontalAlignment="Stretch">
         <StackPanel Spacing="4">
+          <TextBlock Classes="warning" MaxWidth="560"
+                     Text="Store this somewhere separate from the key itself, ideally offline. Publishing it permanently retires the key, which is what you want if you ever lose the private key or the passphrase. It can be made later only while you still have the private key and passphrase. Anyone who holds it can retire your key." />
           <DockPanel>
             <Button DockPanel.Dock="Right" Content="Copy"
+                    AutomationProperties.Name="Copy generated revocation certificate"
                     Command="{Binding CopyRevocationCertificateCommand}" />
             <TextBlock Text="Revocation certificate" Classes="sectionHeader" VerticalAlignment="Center" />
           </DockPanel>
           <TextBox Classes="keyBlock" MaxHeight="110"
                    AutomationProperties.Name="Generated revocation certificate"
                    Text="{Binding GeneratedRevocationCertificate, Mode=OneWay}" />
-          <TextBlock Classes="warning" MaxWidth="560"
-                     Text="Store this somewhere separate from the key itself, ideally offline. Publishing it permanently retires the key, which is what you want if you ever lose the private key or the passphrase. It can be made later only while you still have the private key and passphrase. Anyone who holds it can retire your key." />
         </StackPanel>
         </Expander>
 

@@ -38,6 +38,7 @@ public partial class TextViewModel : ViewModelBase
     private string _input = string.Empty;
 
     [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(CopyOutputCommand))]
     private string _output = string.Empty;
 
     [ObservableProperty]
@@ -204,7 +205,9 @@ public partial class TextViewModel : ViewModelBase
             SelectedAction = TextAction.Decrypt;
     });
 
-    [RelayCommand]
+    private bool CanCopyOutput() => !string.IsNullOrEmpty(Output);
+
+    [RelayCommand(CanExecute = nameof(CanCopyOutput))]
     private Task CopyOutputAsync() => GuardAsync(async () =>
     {
         if (string.IsNullOrEmpty(Output)) return;

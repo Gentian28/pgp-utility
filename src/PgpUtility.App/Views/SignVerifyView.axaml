@@ -78,10 +78,10 @@
           <TextBlock FontWeight="SemiBold" FontSize="14"
                      Text="{Binding Headline}"
                      Classes.verdictGood="{Binding IsValid}" Classes.verdictBad="{Binding IsInvalid}" Classes.verdictUnknown="{Binding !Completed}" />
+          <TextBlock Classes="warning" Text="{Binding Caveat}" IsVisible="{Binding Caveat, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
           <SelectableTextBlock Text="{Binding PrimaryFingerprint, Converter={x:Static format:Converters.SpacedFingerprint}}" FontSize="12" TextWrapping="Wrap" />
           <TextBlock Classes="hint" Text="Compare the full fingerprint with the signer over a trusted channel. A matching signature does not establish a person's identity." />
           <TextBlock Text="{Binding Message}" TextWrapping="Wrap" FontSize="12" />
-          <TextBlock Classes="warning" Text="{Binding Caveat}" IsVisible="{Binding Caveat, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
           <TextBlock Classes="hint" IsVisible="{Binding IsValid}">
             <Run Text="Signed" />
             <Run Text="{Binding SignedAt, Mode=OneWay}" />

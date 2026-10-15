@@ -59,28 +59,30 @@
       <TextBlock Text="Output" Classes="sectionHeader" VerticalAlignment="Center" />
     </DockPanel>
 
-    <Grid Grid.Row="4" RowDefinitions="*,Auto,Auto">
-      <TextBlock Grid.Row="2" Text="{Binding StatusMessage}" Classes="hint" TextWrapping="Wrap" />
+    <Grid Grid.Row="4" RowDefinitions="*,Auto">
+      <TextBlock Grid.Row="1" Text="{Binding StatusMessage}" Classes="hint" TextWrapping="Wrap" />
       <TextBox Grid.Row="0" Text="{Binding Output, Mode=OneWay}" IsReadOnly="True"
+               IsVisible="{Binding !HasResult}"
                AutomationProperties.Name="Text output"
                AcceptsReturn="True" TextWrapping="Wrap"
                VerticalAlignment="Stretch" VerticalContentAlignment="Top"
                FontFamily="Cascadia Code,Menlo,DejaVu Sans Mono,Consolas,monospace" FontSize="12" />
 
       <!-- Verification verdict, for the Verify action -->
-      <Border Grid.Row="1" Classes="panel" Padding="10" Margin="0,8,0,0"
-              IsVisible="{Binding HasResult}">
+      <ScrollViewer Grid.Row="0" IsVisible="{Binding HasResult}">
+      <Border Classes="panel" Padding="10" Margin="0,8,0,0">
         <StackPanel Spacing="4" DataContext="{Binding Result}" x:DataType="models:SignatureVerification">
           <TextBlock FontWeight="SemiBold"
                      Text="{Binding Headline}"
                      Classes.verdictGood="{Binding IsValid}" Classes.verdictBad="{Binding IsInvalid}" Classes.verdictUnknown="{Binding !Completed}" />
+          <TextBlock Classes="warning" Text="{Binding Caveat}"
+                     IsVisible="{Binding Caveat, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
           <SelectableTextBlock Text="{Binding PrimaryFingerprint, Converter={x:Static format:Converters.SpacedFingerprint}}" FontSize="12" TextWrapping="Wrap" />
           <TextBlock Classes="hint" Text="Compare the full fingerprint with the signer over a trusted channel. A matching signature does not establish a person's identity." />
           <TextBlock Text="{Binding Message}" FontSize="12" TextWrapping="Wrap" />
-          <TextBlock Classes="warning" Text="{Binding Caveat}"
-                     IsVisible="{Binding Caveat, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
         </StackPanel>
       </Border>
+      </ScrollViewer>
     </Grid>
 
   </Grid>
