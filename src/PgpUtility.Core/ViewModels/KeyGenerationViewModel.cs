@@ -9,7 +9,10 @@ namespace PgpUtility.ViewModels;
 /// One entry in the algorithm dropdown. Wraps the enum so the list can carry a label without the
 /// view having to know how to spell each algorithm.
 /// </summary>
-public sealed record AlgorithmChoice(PgpKeyAlgorithm Value, string Display);
+public sealed record AlgorithmChoice(PgpKeyAlgorithm Value, string Display)
+{
+    public override string ToString() => Display;
+}
 
 public partial class KeyGenerationViewModel : ViewModelBase
 {
