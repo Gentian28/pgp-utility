@@ -34,6 +34,15 @@ jobs:
         with:
           dotnet-version: 10.0.3xx
 
+      - name: Keep GnuPG agent sockets below the OS path limit
+        shell: pwsh
+        run: |
+          $directory = if ($IsWindows) { Join-Path ([IO.Path]::GetPathRoot($env:RUNNER_TEMP)) 'pgputility-test-temp' } else { '/tmp/pgputility-test-temp' }
+          New-Item -ItemType Directory -Force -Path $directory | Out-Null
+          "TEMP=$directory" >> $env:GITHUB_ENV
+          "TMP=$directory" >> $env:GITHUB_ENV
+          "TMPDIR=$directory" >> $env:GITHUB_ENV
+
       # The interoperability tests skip when gpg is missing, so without this the suite would go
       # green having proved nothing about the claim that is hardest to get right. Only Ubuntu
       # ships gpg ready to use.

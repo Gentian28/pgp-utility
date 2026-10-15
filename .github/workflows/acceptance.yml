@@ -24,6 +24,14 @@ jobs:
       - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
         with:
           dotnet-version: 10.0.3xx
+      - name: Keep GnuPG agent sockets below the OS path limit
+        shell: pwsh
+        run: |
+          $directory = if ($IsWindows) { Join-Path ([IO.Path]::GetPathRoot($env:RUNNER_TEMP)) 'pgputility-test-temp' } else { '/tmp/pgputility-test-temp' }
+          New-Item -ItemType Directory -Force -Path $directory | Out-Null
+          "TEMP=$directory" >> $env:GITHUB_ENV
+          "TMP=$directory" >> $env:GITHUB_ENV
+          "TMPDIR=$directory" >> $env:GITHUB_ENV
       - name: Prepare Windows GnuPG
         if: runner.os == 'Windows'
         shell: pwsh

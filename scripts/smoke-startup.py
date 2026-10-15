@@ -4,6 +4,7 @@ from contextlib import nullcontext
 import os
 from pathlib import Path
 import subprocess
+import signal
 import sys
 import tempfile
 
@@ -28,11 +29,20 @@ with workspace as store:
         startup.dwFlags |= subprocess.STARTF_USESHOWWINDOW
         startup.wShowWindow = 0
         options = {"startupinfo": startup, "creationflags": subprocess.CREATE_NO_WINDOW}
+    else:
+        # AppImage extract-and-run can keep a child alive after its launcher exits.
+        options = {"start_new_session": True}
     process = subprocess.Popen([str(executable)], env=environment, stdout=subprocess.PIPE, stderr=subprocess.PIPE, **options)
     try:
         stdout, stderr = process.communicate(timeout=10)
     except subprocess.TimeoutExpired:
-        process.kill()
+        if os.name == "nt":
+            process.kill()
+        else:
+            try:
+                os.killpg(process.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
         process.communicate(timeout=10)
         if arguments.corrupt_index and not list(Path(store).glob("index.corrupt.*.json")):
             raise SystemExit("The corrupt index was not preserved during startup recovery.")
