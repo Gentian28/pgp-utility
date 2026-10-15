@@ -1,5 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="using:PgpUtility.App.Controls"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="using:PgpUtility.ViewModels"
@@ -26,9 +27,9 @@
 
       <StackPanel Spacing="4">
         <TextBlock Text="Passphrase" Classes="fieldLabel" />
-        <TextBox x:Name="PassphraseBox" PasswordChar="●" AutomationProperties.Name="New key passphrase" />
+        <controls:PassphraseTextBox x:Name="PassphraseBox" PasswordChar="●" AutomationProperties.Name="New key passphrase" />
         <TextBlock Text="Confirm passphrase" Classes="fieldLabel" Margin="0,6,0,0" />
-        <TextBox x:Name="ConfirmPassphraseBox" PasswordChar="●" AutomationProperties.Name="Confirm key passphrase" />
+        <controls:PassphraseTextBox x:Name="ConfirmPassphraseBox" PasswordChar="●" AutomationProperties.Name="Confirm key passphrase" />
         <TextBlock Classes="warning"
                    Text="There is no way to recover this passphrase. Lose it and the key is gone, along with anything only it can decrypt." />
       </StackPanel>

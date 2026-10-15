@@ -1,4 +1,4 @@
-"""Reject writable inline display bindings before they can corrupt their source or recurse."""
+"""Reject unsafe display bindings and passphrase controls before desktop acceptance."""
 import argparse
 from pathlib import Path
 import re
@@ -13,8 +13,15 @@ if not arguments.root.is_dir():
 
 failures = []
 checked = 0
+passphrases = 0
 for path in sorted(arguments.root.rglob("*.axaml")):
-    for inline in ET.parse(path).iter("{https://github.com/avaloniaui}Run"):
+    for inline in ET.parse(path).iter():
+        if inline.get("PasswordChar") is not None:
+            passphrases += 1
+            if inline.tag != "{using:PgpUtility.App.Controls}PassphraseTextBox":
+                failures.append(f"{path}: masked passphrases must use PassphraseTextBox to keep plaintext out of accessibility values and events.")
+        if inline.tag != "{https://github.com/avaloniaui}Run":
+            continue
         expression = inline.get("Text", "").strip()
         if not re.match(r"\{(?:Binding|CompiledBinding|ReflectionBinding)\b", expression):
             continue
@@ -26,4 +33,4 @@ for path in sorted(arguments.root.rglob("*.axaml")):
 if failures:
     print("\n".join(failures), file=sys.stderr)
     sys.exit(1)
-print(f"Checked {checked} inline display bindings: no source writeback.")
+print(f"Checked {checked} inline display bindings and {passphrases} protected passphrase controls.")

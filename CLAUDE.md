@@ -127,6 +127,11 @@ are ZIP archives of existing protected key packets and revocation material, with
 
 ## UI notes
 
+- **Masked fields use `PassphraseTextBox`.** The toolkit's default automation peer returns
+  plaintext and publishes it in value-change events despite `PasswordChar`. The app's peer
+  retains editable accessibility with an empty value and never publishes text-change values.
+  The existing UI safety script rejects ordinary masked text boxes.
+
 - **`Run.Text` defaults to TwoWay.** Inline display bindings must explicitly use `Mode=OneWay`
   (or `OneTime`). Formatting a key ID through a writable binding changes the source repeatedly
   and overflows the stack when its picker opens. `python scripts/check-display-bindings.py`

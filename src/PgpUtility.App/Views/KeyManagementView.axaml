@@ -1,5 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="using:PgpUtility.App.Controls"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="using:PgpUtility.ViewModels"
@@ -100,13 +101,13 @@
               </StackPanel>
               <StackPanel IsVisible="{Binding NeedsCurrentPassphrase}" Spacing="4">
                 <TextBlock Text="Current passphrase" Classes="fieldLabel" />
-                <TextBox x:Name="CurrentPassphraseBox" PasswordChar="*" AutomationProperties.Name="Current passphrase" />
+                <controls:PassphraseTextBox x:Name="CurrentPassphraseBox" PasswordChar="*" AutomationProperties.Name="Current passphrase" />
               </StackPanel>
               <StackPanel IsVisible="{Binding IsChangingPassphrase}" Spacing="4">
                 <TextBlock Text="New passphrase" Classes="fieldLabel" />
-                <TextBox x:Name="NewPassphraseBox" PasswordChar="*" AutomationProperties.Name="New passphrase" />
+                <controls:PassphraseTextBox x:Name="NewPassphraseBox" PasswordChar="*" AutomationProperties.Name="New passphrase" />
                 <TextBlock Text="Confirm new passphrase" Classes="fieldLabel" />
-                <TextBox x:Name="ConfirmNewPassphraseBox" PasswordChar="*" AutomationProperties.Name="Confirm new passphrase" />
+                <controls:PassphraseTextBox x:Name="ConfirmNewPassphraseBox" PasswordChar="*" AutomationProperties.Name="Confirm new passphrase" />
                 <TextBlock Classes="warning" Text="Older backups retain the old passphrase. Make a fresh backup after this change." />
               </StackPanel>
               <TextBlock Classes="warning" IsVisible="{Binding IsExportingCertificate}" Text="Anyone holding this certificate can permanently retire the key. Keep it separately from your private key." />

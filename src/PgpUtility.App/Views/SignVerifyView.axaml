@@ -1,5 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="using:PgpUtility.App.Controls"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="using:PgpUtility.ViewModels"
@@ -61,7 +62,7 @@
 
       <StackPanel Spacing="4" IsVisible="{Binding IsSignMode}">
         <TextBlock Text="Passphrase" Classes="fieldLabel" />
-        <TextBox x:Name="PassphraseBox" PasswordChar="●" MaxWidth="420" HorizontalAlignment="Stretch" AutomationProperties.Name="Signing passphrase" />
+        <controls:PassphraseTextBox x:Name="PassphraseBox" PasswordChar="●" MaxWidth="420" HorizontalAlignment="Stretch" AutomationProperties.Name="Signing passphrase" />
       </StackPanel>
 
       <CheckBox Content="ASCII armor" IsChecked="{Binding AsciiArmor}" IsVisible="{Binding IsSignMode}" />
