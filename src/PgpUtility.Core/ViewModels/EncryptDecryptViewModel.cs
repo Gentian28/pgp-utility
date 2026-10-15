@@ -77,9 +77,7 @@ public partial class EncryptDecryptViewModel : ViewModelBase
         var keys = ReadKeys(_keyStoreService);
         if (keys is null) return;
         string? selected = SelectedKeyId;
-        AvailableKeys.Clear();
-        foreach (var key in keys)
-            if (IsEncryptMode ? key.CanEncrypt : key.HasPrivateKey) AvailableKeys.Add(key);
+        SynchronizeKeyChoices(AvailableKeys, keys.Where(key => IsEncryptMode ? key.CanEncrypt : key.HasPrivateKey));
         SelectedKeyId = AvailableKeys.Any(k => k.KeyId == selected) ? selected : null;
     }
 

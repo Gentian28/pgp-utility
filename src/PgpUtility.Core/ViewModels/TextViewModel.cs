@@ -101,18 +101,12 @@ public partial class TextViewModel : ViewModelBase
         if (keys is null) return;
         string? selected = SelectedKeyId;
         var before = AvailableKeys.FirstOrDefault(k => k.KeyId == selected);
-        AvailableKeys.Clear();
-
         // Decrypt and sign need a secret key. Encrypt and verify work with anyone's public one.
         bool secretRequired = NeedsPassphrase;
-
-        foreach (var key in keys)
-        {
-            if ((!secretRequired || key.HasPrivateKey) &&
-                (SelectedAction != TextAction.Encrypt || key.CanEncrypt) &&
-                (SelectedAction != TextAction.Sign || key.CanSign))
-                AvailableKeys.Add(key);
-        }
+        SynchronizeKeyChoices(AvailableKeys, keys.Where(key =>
+            (!secretRequired || key.HasPrivateKey) &&
+            (SelectedAction != TextAction.Encrypt || key.CanEncrypt) &&
+            (SelectedAction != TextAction.Sign || key.CanSign)));
         SelectedKeyId = AvailableKeys.Any(k => k.KeyId == selected) ? selected : null;
         if (!SameKeyState(before, AvailableKeys.FirstOrDefault(k => k.KeyId == SelectedKeyId))) Invalidate();
     }

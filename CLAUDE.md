@@ -127,6 +127,11 @@ are ZIP archives of existing protected key packets and revocation material, with
 
 ## UI notes
 
+- **`Run.Text` defaults to TwoWay.** Inline display bindings must explicitly use `Mode=OneWay`
+  (or `OneTime`). Formatting a key ID through a writable binding changes the source repeatedly
+  and overflows the stack when its picker opens. `python scripts/check-display-bindings.py`
+  guards this in CI and release acceptance.
+
 - **Avalonia's `DataContext` on an element also applies to that element's own bindings.** Putting
   `IsVisible="{Binding HasSelection}"` and `DataContext="{Binding SelectedKey}"` on one panel looks
   up `HasSelection` on `PgpKeyInfo` and fails the compiled-binding build.

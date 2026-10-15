@@ -8,27 +8,27 @@
              x:Class="PgpUtility.App.Views.KeyGenerationView"
              x:DataType="vm:KeyGenerationViewModel">
 
-  <ScrollViewer Padding="16">
-    <StackPanel Spacing="14" MaxWidth="620" HorizontalAlignment="Stretch">
+  <ScrollViewer>
+    <StackPanel Margin="16" Spacing="14" MaxWidth="620" HorizontalAlignment="Stretch">
 
       <StackPanel Spacing="14" IsEnabled="{Binding !IsBusy}">
       <TextBlock Text="Generate a key pair" Classes="sectionHeader" FontSize="16" />
 
       <StackPanel Spacing="4">
         <TextBlock Text="Name" Classes="fieldLabel" />
-        <TextBox Text="{Binding Name}" Watermark="The name others will see" />
+        <TextBox Text="{Binding Name}" Watermark="The name others will see" AutomationProperties.Name="Key owner name" />
       </StackPanel>
 
       <StackPanel Spacing="4">
         <TextBlock Text="Email" Classes="fieldLabel" />
-        <TextBox Text="{Binding Email}" Watermark="Optional" />
+        <TextBox Text="{Binding Email}" Watermark="Optional" AutomationProperties.Name="Key owner email" />
       </StackPanel>
 
       <StackPanel Spacing="4">
         <TextBlock Text="Passphrase" Classes="fieldLabel" />
-        <TextBox x:Name="PassphraseBox" PasswordChar="●" />
+        <TextBox x:Name="PassphraseBox" PasswordChar="●" AutomationProperties.Name="New key passphrase" />
         <TextBlock Text="Confirm passphrase" Classes="fieldLabel" Margin="0,6,0,0" />
-        <TextBox x:Name="ConfirmPassphraseBox" PasswordChar="●" />
+        <TextBox x:Name="ConfirmPassphraseBox" PasswordChar="●" AutomationProperties.Name="Confirm key passphrase" />
         <TextBlock Classes="warning"
                    Text="There is no way to recover this passphrase. Lose it and the key is gone, along with anything only it can decrypt." />
       </StackPanel>
@@ -39,7 +39,7 @@
                   SelectedValue="{Binding SelectedAlgorithm}"
                   SelectedValueBinding="{Binding Value, x:DataType=vm:AlgorithmChoice}"
                   DisplayMemberBinding="{Binding Display, x:DataType=vm:AlgorithmChoice}"
-                  HorizontalAlignment="Left" MinWidth="240" />
+                  HorizontalAlignment="Left" MinWidth="240" AutomationProperties.Name="Key algorithm" />
         <TextBlock Classes="hint" MaxWidth="460"
                    Text="Ed25519 generates instantly and produces much smaller keys and signatures. Choose RSA only if you need to work with tooling older than GnuPG 2.1." />
       </StackPanel>
@@ -48,14 +48,14 @@
       <StackPanel Spacing="4" IsVisible="{Binding IsRsaSelected}">
         <TextBlock Text="Key size" Classes="fieldLabel" />
         <ComboBox ItemsSource="{Binding KeySizes}" SelectedItem="{Binding SelectedKeySize}"
-                  HorizontalAlignment="Left" MinWidth="140" />
+                  HorizontalAlignment="Left" MinWidth="140" AutomationProperties.Name="RSA key size" />
         <TextBlock Classes="hint" Text="4096 takes noticeably longer to generate." />
       </StackPanel>
 
       <StackPanel Spacing="6">
         <CheckBox Content="Set an expiry date" IsChecked="{Binding HasExpiration}" />
         <DatePicker SelectedDate="{Binding ExpirationDate}" IsEnabled="{Binding HasExpiration}"
-                    HorizontalAlignment="Left" />
+                    HorizontalAlignment="Left" AutomationProperties.Name="Key expiry date" />
         <TextBlock Classes="hint" MaxWidth="460"
                    Text="An expiry is a safety net, not a deadline: you can always extend it later with the private key. Keep a revocation certificate separately so you can retire a lost key." />
       </StackPanel>
@@ -75,7 +75,7 @@
             <Button DockPanel.Dock="Right" Content="Copy" Command="{Binding CopyPublicKeyCommand}" />
             <TextBlock Text="Public key" Classes="sectionHeader" VerticalAlignment="Center" />
           </DockPanel>
-          <TextBox Classes="keyBlock" Text="{Binding GeneratedPublicKey, Mode=OneWay}" />
+          <TextBox Classes="keyBlock" Text="{Binding GeneratedPublicKey, Mode=OneWay}" AutomationProperties.Name="Generated public key" />
           <TextBlock Classes="hint" Text="Share this freely. It is what others use to encrypt to you." />
         </StackPanel>
 
@@ -85,7 +85,7 @@
             <Button DockPanel.Dock="Right" Content="Copy" Command="{Binding CopyPrivateKeyCommand}" />
             <TextBlock Text="Private key" Classes="sectionHeader" VerticalAlignment="Center" />
           </DockPanel>
-          <TextBox Classes="keyBlock" Text="{Binding GeneratedPrivateKey, Mode=OneWay}" />
+          <TextBox Classes="keyBlock" Text="{Binding GeneratedPrivateKey, Mode=OneWay}" AutomationProperties.Name="Generated private key" />
           <TextBlock Classes="warning"
                      Text="Never share this. Anyone holding it and the passphrase can read everything sent to you. Clipboard history may keep copied private material." />
         </StackPanel>
@@ -99,6 +99,7 @@
             <TextBlock Text="Revocation certificate" Classes="sectionHeader" VerticalAlignment="Center" />
           </DockPanel>
           <TextBox Classes="keyBlock" MaxHeight="110"
+                   AutomationProperties.Name="Generated revocation certificate"
                    Text="{Binding GeneratedRevocationCertificate, Mode=OneWay}" />
           <TextBlock Classes="warning" MaxWidth="560"
                      Text="Store this somewhere separate from the key itself, ideally offline. Publishing it permanently retires the key, which is what you want if you ever lose the private key or the passphrase. It can be made later only while you still have the private key and passphrase. Anyone who holds it can retire your key." />

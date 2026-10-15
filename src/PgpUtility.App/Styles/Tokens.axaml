@@ -70,6 +70,14 @@
     <Setter Property="CornerRadius" Value="6" />
   </Style>
 
+  <Style Selector="Expander /template/ ToggleButton#ExpanderHeader">
+    <Setter Property="AutomationProperties.Name" Value="{Binding $parent[Expander].Header, StringFormat='{}{0}'}" />
+  </Style>
+
+  <Style Selector="DatePicker /template/ Button#PART_FlyoutButton">
+    <Setter Property="AutomationProperties.Name" Value="Choose date" />
+  </Style>
+
   <Style Selector="TextBlock.verdictGood">
     <Setter Property="Foreground" Value="{DynamicResource SuccessBrush}" />
   </Style>

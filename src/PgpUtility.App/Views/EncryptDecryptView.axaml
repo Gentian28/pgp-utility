@@ -9,8 +9,8 @@
              x:Class="PgpUtility.App.Views.EncryptDecryptView"
              x:DataType="vm:EncryptDecryptViewModel">
 
-  <ScrollViewer Padding="16">
-    <StackPanel Spacing="14" MaxWidth="820" HorizontalAlignment="Stretch">
+  <ScrollViewer>
+    <StackPanel Margin="16" Spacing="14" MaxWidth="820" HorizontalAlignment="Stretch">
 
       <StackPanel Spacing="14" IsEnabled="{Binding !IsBusy}">
       <!-- Mode -->
@@ -67,14 +67,14 @@
         <ComboBox ItemsSource="{Binding AvailableKeys}"
                   SelectedValue="{Binding SelectedKeyId}"
                   SelectedValueBinding="{Binding KeyId, x:DataType=models:PgpKeyInfo}"
-                  IsEnabled="{Binding UseKeyFromStore}"
+                  IsEnabled="{Binding UseKeyFromStore}" AutomationProperties.Name="File key"
                   HorizontalAlignment="Stretch"
                   Margin="24,0,0,0">
           <ComboBox.ItemTemplate>
             <DataTemplate x:DataType="models:PgpKeyInfo">
-              <TextBlock>
-                <Run Text="{Binding UserId}" />
-                <Run Text="{Binding KeyId, StringFormat=' ({0})'}"
+              <TextBlock TextTrimming="CharacterEllipsis">
+                <Run Text="{Binding UserId, Mode=OneWay}" />
+                <Run Text="{Binding KeyId, Mode=OneWay, StringFormat=' ({0})'}"
                      Foreground="{DynamicResource MutedTextBrush}" />
               </TextBlock>
             </DataTemplate>
@@ -87,7 +87,7 @@
           <Button DockPanel.Dock="Right" Content="Browse..." Margin="8,0,0,0"
                   Command="{Binding BrowseKeyCommand}"
                   IsEnabled="{Binding !UseKeyFromStore}" />
-          <TextBox Text="{Binding KeyFilePath}" IsEnabled="{Binding !UseKeyFromStore}"
+          <TextBox Text="{Binding KeyFilePath}" IsEnabled="{Binding !UseKeyFromStore}" AutomationProperties.Name="Key file"
                    Watermark="Path to a key file" />
         </DockPanel>
       </StackPanel>
@@ -96,6 +96,7 @@
       <StackPanel Spacing="4" IsVisible="{Binding !IsEncryptMode}">
         <TextBlock Text="Passphrase" Classes="fieldLabel" />
         <TextBox x:Name="PassphraseBox" PasswordChar="●" MaxWidth="420"
+                 AutomationProperties.Name="Decryption passphrase"
                  HorizontalAlignment="Stretch" Watermark="Passphrase for the private key" />
         <TextBlock Classes="hint"
                    Text="Cleared once the batch finishes, so you will be asked again next time." />
@@ -107,7 +108,7 @@
         <DockPanel>
           <Button DockPanel.Dock="Right" Content="Browse..." Margin="8,0,0,0"
                   Command="{Binding BrowseOutputDirectoryCommand}" />
-          <TextBox Text="{Binding OutputDirectory}" Watermark="Where the results are written" />
+          <TextBox Text="{Binding OutputDirectory}" Watermark="Where the results are written" AutomationProperties.Name="Output folder" />
         </DockPanel>
       </StackPanel>
 

@@ -9,15 +9,15 @@
              x:Class="PgpUtility.App.Views.KeyManagementView"
              x:DataType="vm:KeyManagementViewModel">
 
-  <ScrollViewer Padding="16">
-    <StackPanel Spacing="12">
+  <ScrollViewer>
+    <StackPanel Margin="16" Spacing="12">
       <WrapPanel IsEnabled="{Binding !IsBusy}">
         <Button Content="Import file..." Command="{Binding ImportKeyCommand}" Margin="0,0,8,8" />
         <Button Content="Import from clipboard" Command="{Binding ImportFromClipboardCommand}" Margin="0,0,8,8" />
         <Button Content="Back up keys..." Command="{Binding BackUpKeysCommand}" Margin="0,0,8,8" />
         <Button Content="Restore backup..." Command="{Binding RestoreBackupCommand}" Margin="0,0,8,8" />
       </WrapPanel>
-      <Border Classes="panel" IsVisible="{Binding IsBackupConfirmationVisible}">
+      <Border Classes="panel" Padding="16" IsVisible="{Binding IsBackupConfirmationVisible}">
         <StackPanel Spacing="8" IsEnabled="{Binding !IsBusy}">
           <TextBlock Text="Back up keys and recovery certificates" Classes="sectionHeader" />
           <TextBlock Classes="warning" Text="This ZIP contains private keys and certificates that can retire your keys. The archive has no additional password protection. Store it offline, protect access, and test a restore before relying on it." />
@@ -27,7 +27,7 @@
           </WrapPanel>
         </StackPanel>
       </Border>
-      <Border Classes="panel" IsVisible="{Binding IsRestoreConfirmationVisible}">
+      <Border Classes="panel" Padding="16" IsVisible="{Binding IsRestoreConfirmationVisible}">
         <StackPanel Spacing="8" IsEnabled="{Binding !IsBusy}">
           <TextBlock Text="Restore a PGP Utility backup" Classes="sectionHeader" />
           <TextBlock Classes="hint" Text="Restore merges identities and keeps known revocations. Existing private-key protection stays unchanged. To use an older backup passphrase, restore into an empty store. Afterwards, decrypt an older message to check access." />
@@ -37,7 +37,7 @@
           </WrapPanel>
         </StackPanel>
       </Border>
-      <Border Classes="panel" IsVisible="{Binding !Keys.Count}">
+      <Border Classes="panel" Padding="16" IsVisible="{Binding !Keys.Count}">
         <StackPanel Spacing="8">
           <TextBlock Text="Start with a key" Classes="sectionHeader" />
           <TextBlock Classes="hint" Text="Import a correspondent's public key to encrypt to them. Generate your own key on the Generate tab to receive encrypted messages and sign files. Compare the full fingerprint over a channel you trust before using an imported key." />
@@ -89,13 +89,13 @@
             <Button Content="Save revocation certificate..." Command="{Binding ManageKeyCommand}" CommandParameter="certificate" Margin="0,0,8,8" />
           </WrapPanel>
           <Button Content="Apply revocation certificate..." Command="{Binding ManageKeyCommand}" CommandParameter="revoke" HorizontalAlignment="Left" />
-          <Border Classes="panel" IsVisible="{Binding HasKeyAction}">
+          <Border Classes="panel" Padding="16" IsVisible="{Binding HasKeyAction}">
             <StackPanel Spacing="8">
               <TextBlock Text="{Binding KeyActionLabel}" Classes="sectionHeader" TextWrapping="Wrap" />
               <SelectableTextBlock Text="{Binding SelectedKey.Fingerprint}" FontSize="12" TextWrapping="Wrap" />
               <StackPanel IsVisible="{Binding IsRenewing}" Spacing="4">
                 <TextBlock Text="New expiry (end of local day)" Classes="fieldLabel" />
-                <DatePicker SelectedDate="{Binding NewExpiry}" HorizontalAlignment="Left" />
+                <DatePicker SelectedDate="{Binding NewExpiry}" HorizontalAlignment="Left" AutomationProperties.Name="Renewed expiry date" />
                 <TextBlock Classes="hint" Text="Keep the same fingerprint. Share the updated public key after extending it." />
               </StackPanel>
               <StackPanel IsVisible="{Binding NeedsCurrentPassphrase}" Spacing="4">
@@ -120,7 +120,7 @@
           </StackPanel>
           </Expander>
           <Button Content="Delete key..." Classes="Danger" Command="{Binding DeleteKeyCommand}" HorizontalAlignment="Left" />
-          <Border Classes="panel" IsVisible="{Binding IsDeleteConfirmationVisible}">
+          <Border Classes="panel" Padding="16" IsVisible="{Binding IsDeleteConfirmationVisible}">
             <StackPanel Spacing="8">
               <TextBlock Text="Delete this key from this device?" Classes="sectionHeader" TextWrapping="Wrap" />
               <SelectableTextBlock Text="{Binding SelectedKey.Fingerprint}" TextWrapping="Wrap" FontSize="12" />

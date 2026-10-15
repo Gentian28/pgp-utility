@@ -46,8 +46,8 @@
     <Border DockPanel.Dock="Bottom" Classes="panel" CornerRadius="0"
             BorderThickness="0,1,0,0" Height="160"
             IsVisible="{Binding IsLogPanelVisible}">
-      <ScrollViewer Padding="12,8">
-        <ItemsControl ItemsSource="{Binding LogEntries}">
+      <ScrollViewer>
+        <ItemsControl Margin="12,8" ItemsSource="{Binding LogEntries}">
           <ItemsControl.ItemTemplate>
             <DataTemplate>
               <TextBlock Text="{Binding}" FontSize="11"

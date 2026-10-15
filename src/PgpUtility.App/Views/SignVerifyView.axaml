@@ -9,8 +9,8 @@
              x:Class="PgpUtility.App.Views.SignVerifyView"
              x:DataType="vm:SignVerifyViewModel">
 
-  <ScrollViewer Padding="16">
-    <StackPanel Spacing="14" MaxWidth="820">
+  <ScrollViewer>
+    <StackPanel Margin="16" Spacing="14" MaxWidth="820">
 
       <StackPanel Orientation="Horizontal" Spacing="16">
         <RadioButton Content="Sign" GroupName="SignMode" IsChecked="{Binding IsSignMode}" />
@@ -25,7 +25,7 @@
         <DockPanel>
           <Button DockPanel.Dock="Right" Content="Browse..." Margin="8,0,0,0"
                   Command="{Binding BrowseFileCommand}" />
-          <TextBox Text="{Binding FilePath}" Watermark="Drop a file here, or browse" />
+          <TextBox Text="{Binding FilePath}" Watermark="Drop a file here, or browse" AutomationProperties.Name="File to sign or verify" />
         </DockPanel>
       </StackPanel>
 
@@ -34,7 +34,7 @@
         <DockPanel>
           <Button DockPanel.Dock="Right" Content="Browse..." Margin="8,0,0,0"
                   Command="{Binding BrowseSignatureCommand}" />
-          <TextBox Text="{Binding SignaturePath}" Watermark="The .sig or .asc file beside it" />
+          <TextBox Text="{Binding SignaturePath}" Watermark="The .sig or .asc file beside it" AutomationProperties.Name="Signature file" />
         </DockPanel>
       </StackPanel>
 
@@ -44,12 +44,12 @@
         <ComboBox ItemsSource="{Binding AvailableKeys}"
                   SelectedValue="{Binding SelectedKeyId}"
                   SelectedValueBinding="{Binding KeyId, x:DataType=models:PgpKeyInfo}"
-                  HorizontalAlignment="Stretch">
+                  HorizontalAlignment="Stretch" AutomationProperties.Name="Signing or verification key">
           <ComboBox.ItemTemplate>
             <DataTemplate x:DataType="models:PgpKeyInfo">
-              <TextBlock>
-                <Run Text="{Binding UserId}" />
-                <Run Text="{Binding KeyId, StringFormat=' ({0})'}"
+              <TextBlock TextTrimming="CharacterEllipsis">
+                <Run Text="{Binding UserId, Mode=OneWay}" />
+                <Run Text="{Binding KeyId, Mode=OneWay, StringFormat=' ({0})'}"
                      Foreground="{DynamicResource MutedTextBrush}" />
               </TextBlock>
             </DataTemplate>
@@ -61,7 +61,7 @@
 
       <StackPanel Spacing="4" IsVisible="{Binding IsSignMode}">
         <TextBlock Text="Passphrase" Classes="fieldLabel" />
-        <TextBox x:Name="PassphraseBox" PasswordChar="●" MaxWidth="420" HorizontalAlignment="Stretch" />
+        <TextBox x:Name="PassphraseBox" PasswordChar="●" MaxWidth="420" HorizontalAlignment="Stretch" AutomationProperties.Name="Signing passphrase" />
       </StackPanel>
 
       <CheckBox Content="ASCII armor" IsChecked="{Binding AsciiArmor}" IsVisible="{Binding IsSignMode}" />
@@ -84,7 +84,7 @@
           <TextBlock Classes="warning" Text="{Binding Caveat}" IsVisible="{Binding Caveat, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
           <TextBlock Classes="hint" IsVisible="{Binding IsValid}">
             <Run Text="Signed" />
-            <Run Text="{Binding SignedAt}" />
+            <Run Text="{Binding SignedAt, Mode=OneWay}" />
           </TextBlock>
           <TextBlock Classes="hint" IsVisible="{Binding IsValid}" TextWrapping="Wrap"
                      Text="This proves the file has not changed since it was signed by that key. It does not prove the key belongs to who you think: compare the full fingerprint with the owner. This result describes the bytes read during this check; verify again if the file changes." />

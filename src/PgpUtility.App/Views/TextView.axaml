@@ -20,9 +20,9 @@
                 Width="260" Margin="0,0,8,6" AutomationProperties.Name="Text key">
         <ComboBox.ItemTemplate>
           <DataTemplate x:DataType="models:PgpKeyInfo">
-            <TextBlock>
-              <Run Text="{Binding UserId}" />
-              <Run Text="{Binding KeyId, StringFormat=' ({0})'}"
+            <TextBlock TextTrimming="CharacterEllipsis">
+              <Run Text="{Binding UserId, Mode=OneWay}" />
+              <Run Text="{Binding KeyId, Mode=OneWay, StringFormat=' ({0})'}"
                    Foreground="{DynamicResource MutedTextBrush}" />
             </TextBlock>
           </DataTemplate>
@@ -44,6 +44,7 @@
     <!-- Stretch explicitly: the theme centres a TextBox by default, so in a star-sized row it
          collapses to a single-line strip floating in the middle instead of filling the space. -->
     <TextBox Grid.Row="2" Text="{Binding Input}" AcceptsReturn="True" TextWrapping="Wrap"
+             AutomationProperties.Name="Text input"
              VerticalAlignment="Stretch" VerticalContentAlignment="Top"
              FontFamily="Cascadia Code,Menlo,DejaVu Sans Mono,Consolas,monospace" FontSize="12"
              Watermark="Type or paste here. Paste detects an encrypted or signed block and picks the action for you." />
@@ -61,6 +62,7 @@
     <Grid Grid.Row="4" RowDefinitions="*,Auto,Auto">
       <TextBlock Grid.Row="2" Text="{Binding StatusMessage}" Classes="hint" TextWrapping="Wrap" />
       <TextBox Grid.Row="0" Text="{Binding Output, Mode=OneWay}" IsReadOnly="True"
+               AutomationProperties.Name="Text output"
                AcceptsReturn="True" TextWrapping="Wrap"
                VerticalAlignment="Stretch" VerticalContentAlignment="Top"
                FontFamily="Cascadia Code,Menlo,DejaVu Sans Mono,Consolas,monospace" FontSize="12" />

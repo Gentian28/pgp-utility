@@ -74,6 +74,9 @@ jobs:
       - name: Build
         run: dotnet build PgpUtility.slnx --configuration Release --no-restore -warnaserror
 
+      - name: Reject writable inline display bindings
+        run: python scripts/check-display-bindings.py
+
       # PGPUTILITY_REQUIRE_GPG turns a skipped interoperability test into a failure. Set on Linux
       # only, deliberately: gpg-agent is most reliable there, and one platform that is guaranteed
       # to prove interoperability on every build is worth more than three that are occasionally

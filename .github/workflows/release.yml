@@ -54,6 +54,8 @@ jobs:
         run: ./scripts/check-vulnerabilities.ps1
       - name: Build with zero warnings
         run: dotnet build PgpUtility.slnx --configuration Release -warnaserror
+      - name: Reject writable inline display bindings
+        run: python scripts/check-display-bindings.py
       - name: Test including mandatory GnuPG comparisons
         env:
           PGPUTILITY_REQUIRE_GPG: "1"

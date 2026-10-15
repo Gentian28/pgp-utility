@@ -2,6 +2,9 @@ namespace PgpUtility.Models;
 
 public class PgpKeyInfo
 {
+    // Item automation peers use this when a custom template has no accessible name.
+    public override string ToString() => $"{UserId} ({KeyId})";
+
     public string KeyId { get; set; } = string.Empty;
     public string UserId { get; set; } = string.Empty;
     public string Fingerprint { get; set; } = string.Empty;

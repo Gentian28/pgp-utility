@@ -159,6 +159,46 @@ public class ViewModelStateTests(GeneratedKeys keys)
     private static SignatureVerification Good() => SignatureVerification.Valid("good", "synthetic", "Test", DateTime.UtcNow);
 
     [Fact]
+    public async Task Refresh_keeps_unchanged_key_choice_objects_and_does_not_reset_the_picker()
+    {
+        using var work = new TempWorkspace();
+        var store = await Store(work);
+        var text = new TextViewModel(keys.Service, keys.Signatures, store, new Clipboard(), _ => { });
+        var signatures = new SignVerifyViewModel(keys.Signatures, store, new Picker(), _ => { });
+        var files = new EncryptDecryptViewModel(keys.Service, store, new Picker(), _ => { });
+        string selected = store.GetAllKeys().Single().KeyId;
+        text.SelectedKeyId = signatures.SelectedKeyId = files.SelectedKeyId = selected;
+        var choices = new[] { text.AvailableKeys, signatures.AvailableKeys, files.AvailableKeys };
+        var original = choices.Select(items => items.Single()).ToArray();
+        int resets = 0;
+        foreach (var items in choices)
+            items.CollectionChanged += (_, change) =>
+            {
+                if (change.Action == System.Collections.Specialized.NotifyCollectionChangedAction.Reset) resets++;
+            };
+        text.RefreshKeys();
+        signatures.RefreshKeys();
+        files.RefreshKeys();
+        resets.Should().Be(0, "resetting the collection drops the actual desktop picker's displayed selection");
+        for (int index = 0; index < choices.Length; index++)
+            choices[index].Single().Should().BeSameAs(original[index]);
+
+        await store.ImportKeyFromStringAsync(keys.RsaPrivate, true);
+        text.RefreshKeys();
+        signatures.RefreshKeys();
+        files.RefreshKeys();
+        resets.Should().Be(0);
+        for (int index = 0; index < choices.Length; index++)
+        {
+            choices[index].Should().HaveCount(2);
+            choices[index].Single(key => key.KeyId == selected).Should().BeSameAs(original[index]);
+        }
+        text.SelectedKeyId.Should().Be(selected);
+        signatures.SelectedKeyId.Should().Be(selected);
+        files.SelectedKeyId.Should().Be(selected);
+    }
+
+    [Fact]
     public async Task Losing_access_to_the_store_reports_refresh_failure_without_erasing_lists_or_leaving_verdicts()
     {
         using var work = new TempWorkspace();
