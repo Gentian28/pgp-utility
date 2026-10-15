@@ -70,4 +70,13 @@
     <Setter Property="CornerRadius" Value="6" />
   </Style>
 
+  <Style Selector="TextBlock.verdictGood">
+    <Setter Property="Foreground" Value="{DynamicResource SuccessBrush}" />
+  </Style>
+  <Style Selector="TextBlock.verdictBad">
+    <Setter Property="Foreground" Value="{DynamicResource DangerBrush}" />
+  </Style>
+  <Style Selector="TextBlock.verdictUnknown">
+    <Setter Property="Foreground" Value="{DynamicResource WarningBrush}" />
+  </Style>
 </Styles>

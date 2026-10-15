@@ -1,9 +1,21 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 
-namespace PgpUtility.App.ViewModels;
+namespace PgpUtility.ViewModels;
 
 public partial class ViewModelBase : ObservableObject
 {
+    protected Action<string>? ReportFailure { get; set; }
+
+    protected async Task GuardAsync(Func<Task> action)
+    {
+        try { await action(); }
+        catch (OperationCanceledException) { StatusMessage = "Operation cancelled."; }
+        catch (Exception ex)
+        {
+            StatusMessage = $"The operation could not be completed: {ex.Message}";
+            ReportFailure?.Invoke(StatusMessage);
+        }
+    }
     [ObservableProperty]
     private bool _isBusy;
 

@@ -1,22 +1,8 @@
+using PgpUtility.Services;
 using Avalonia.Controls;
 using Avalonia.Input.Platform;
 
 namespace PgpUtility.App.Services;
-
-/// <summary>
-/// Clipboard access, async because every platform's clipboard is.
-/// </summary>
-/// <remarks>
-/// An interface rather than a direct call so the view models keep no reference to a window.
-/// The WPF version called System.Windows.Clipboard straight from the view model, which is what
-/// made those view models untestable and unportable.
-/// </remarks>
-public interface IClipboardService
-{
-    Task SetTextAsync(string text);
-
-    Task<string?> GetTextAsync();
-}
 
 public sealed class ClipboardService : IClipboardService
 {

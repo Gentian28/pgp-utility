@@ -2,14 +2,16 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-             xmlns:vm="using:PgpUtility.App.ViewModels"
+             xmlns:vm="using:PgpUtility.ViewModels"
+             xmlns:format="using:PgpUtility.App.ViewModels"
              mc:Ignorable="d"
              x:Class="PgpUtility.App.Views.KeyGenerationView"
              x:DataType="vm:KeyGenerationViewModel">
 
   <ScrollViewer Padding="16">
-    <StackPanel Spacing="14" MaxWidth="620" HorizontalAlignment="Left">
+    <StackPanel Spacing="14" MaxWidth="620" HorizontalAlignment="Stretch">
 
+      <StackPanel Spacing="14" IsEnabled="{Binding !IsBusy}">
       <TextBlock Text="Generate a key pair" Classes="sectionHeader" FontSize="16" />
 
       <StackPanel Spacing="4">
@@ -55,9 +57,10 @@
         <DatePicker SelectedDate="{Binding ExpirationDate}" IsEnabled="{Binding HasExpiration}"
                     HorizontalAlignment="Left" />
         <TextBlock Classes="hint" MaxWidth="460"
-                   Text="An expiry is a safety net, not a deadline: you can always extend it later with the private key. A key that never expires can never be retired if you lose access to it." />
+                   Text="An expiry is a safety net, not a deadline: you can always extend it later with the private key. Keep a revocation certificate separately so you can retire a lost key." />
       </StackPanel>
 
+      </StackPanel>
       <Button Content="Generate key pair" Classes="Primary"
               Command="{Binding GenerateCommand}" IsEnabled="{Binding !IsBusy}"
               HorizontalAlignment="Left" />
@@ -76,6 +79,7 @@
           <TextBlock Classes="hint" Text="Share this freely. It is what others use to encrypt to you." />
         </StackPanel>
 
+        <Expander Header="Reveal private key" HorizontalAlignment="Stretch">
         <StackPanel Spacing="4">
           <DockPanel>
             <Button DockPanel.Dock="Right" Content="Copy" Command="{Binding CopyPrivateKeyCommand}" />
@@ -83,9 +87,11 @@
           </DockPanel>
           <TextBox Classes="keyBlock" Text="{Binding GeneratedPrivateKey, Mode=OneWay}" />
           <TextBlock Classes="warning"
-                     Text="Never share this. Anyone holding it and the passphrase can read everything sent to you." />
+                     Text="Never share this. Anyone holding it and the passphrase can read everything sent to you. Clipboard history may keep copied private material." />
         </StackPanel>
+        </Expander>
 
+        <Expander Header="Reveal revocation certificate" HorizontalAlignment="Stretch">
         <StackPanel Spacing="4">
           <DockPanel>
             <Button DockPanel.Dock="Right" Content="Copy"
@@ -95,13 +101,14 @@
           <TextBox Classes="keyBlock" MaxHeight="110"
                    Text="{Binding GeneratedRevocationCertificate, Mode=OneWay}" />
           <TextBlock Classes="warning" MaxWidth="560"
-                     Text="Store this somewhere separate from the key itself, ideally offline. Publishing it permanently retires the key, which is what you want if you ever lose the private key or the passphrase. It cannot be made later, because making one needs the very things you would have lost. Anyone who holds it can retire your key." />
+                     Text="Store this somewhere separate from the key itself, ideally offline. Publishing it permanently retires the key, which is what you want if you ever lose the private key or the passphrase. It can be made later only while you still have the private key and passphrase. Anyone who holds it can retire your key." />
         </StackPanel>
+        </Expander>
 
-        <StackPanel Orientation="Horizontal" Spacing="8">
-          <Button Content="Save all to disk..." Command="{Binding SaveKeysCommand}" />
-          <Button Content="Add to key store" Classes="Primary" Command="{Binding ImportToStoreCommand}" />
-        </StackPanel>
+        <WrapPanel>
+          <Button Content="Save all to disk..." Command="{Binding SaveKeysCommand}" Margin="0,0,8,8" />
+          <Button Content="Add to key store" Classes="Primary" Command="{Binding ImportToStoreCommand}" Margin="0,0,8,8" />
+        </WrapPanel>
 
       </StackPanel>
 

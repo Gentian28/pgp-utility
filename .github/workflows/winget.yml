@@ -29,7 +29,7 @@ jobs:
     runs-on: windows-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           # The generator copies the newest existing manifest forward as its template, so it
           # needs the branch rather than the detached tag commit.
@@ -37,12 +37,15 @@ jobs:
 
       - name: Resolve version
         id: v
+        env:
+          VERSION_INPUT: ${{ github.event.inputs.version }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
         shell: bash
         run: |
-          if [ -n "${{ github.event.inputs.version }}" ]; then
-            ver="${{ github.event.inputs.version }}"
+          if [ -n "${VERSION_INPUT}" ]; then
+            ver="$VERSION_INPUT"
           else
-            ver="${{ github.event.release.tag_name }}"
+            ver="$RELEASE_TAG"
             ver="${ver#v}"
           fi
           if ! echo "$ver" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then

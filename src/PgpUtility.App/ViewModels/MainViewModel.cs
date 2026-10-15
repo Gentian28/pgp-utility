@@ -1,3 +1,4 @@
+using PgpUtility.ViewModels;
 using System.Collections.ObjectModel;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -13,6 +14,8 @@ public partial class MainViewModel : ViewModelBase
     /// not an audit trail, and nothing reads it back.
     /// </summary>
     private const int MaxLogEntries = 500;
+
+    public string VersionLabel => $"PGP Utility {typeof(MainViewModel).Assembly.GetName().Version?.ToString(3)} | .NET {Environment.Version.Major} | Local only";
 
     [ObservableProperty]
     private int _selectedTabIndex;
@@ -41,7 +44,7 @@ public partial class MainViewModel : ViewModelBase
         EncryptDecryptVm.RefreshKeys();
         SignVerifyVm.RefreshKeys();
         TextVm.RefreshKeys();
-        KeyManagementVm.RefreshKeys();
+        if (!KeyManagementVm.IsBusy) KeyManagementVm.RefreshKeys();
     }
 
     public ObservableCollection<string> LogEntries { get; } = new();
@@ -71,7 +74,9 @@ public partial class MainViewModel : ViewModelBase
         SignVerifyVm = new SignVerifyViewModel(signatures, keyStoreService, filePicker, AddLog);
         TextVm = new TextViewModel(pgpService, signatures, keyStoreService, clipboard, AddLog);
         KeyManagementVm = new KeyManagementViewModel(keyStoreService, pgpService, filePicker, clipboard, AddLog);
+        KeyManagementVm.GenerationRequested += (_, _) => SelectedTabIndex = 4;
         KeyGenerationVm = new KeyGenerationViewModel(pgpService, keyStoreService, filePicker, clipboard, AddLog);
+        foreach (string warning in keyStoreService.Warnings) AddLog(warning);
     }
 
     public void AddLog(string message)

@@ -20,52 +20,57 @@ public class PgpSignatureService : IPgpSignatureService
         IProgress<string>? progress = null,
         CancellationToken cancellationToken = default)
     {
-        return await Task.Run(() =>
+        char[] ownedPassphrase = (char[])passphrase.Clone();
+        try
         {
-            try
+            return await Task.Run(() =>
             {
-                cancellationToken.ThrowIfCancellationRequested();
-                progress?.Report($"Signing {Path.GetFileName(inputFilePath)}...");
-
-                PgpSignatureGenerator generator = StartSigning(
-                    privateKeySource, isFilePath, passphrase, PgpSignature.BinaryDocument);
-
-                using (Stream input = File.OpenRead(inputFilePath))
+                try
                 {
-                    Feed(generator, input, cancellationToken);
+                    cancellationToken.ThrowIfCancellationRequested();
+                    FileTransaction.RequireNewOutput(inputFilePath, signatureFilePath);
+                    progress?.Report($"Signing {Path.GetFileName(inputFilePath)}...");
+
+                    PgpSignatureGenerator generator = StartSigning(
+                        privateKeySource, isFilePath, ownedPassphrase, PgpSignature.BinaryDocument);
+
+                    using (Stream input = File.OpenRead(inputFilePath))
+                    {
+                        Feed(generator, input, cancellationToken);
+                    }
+
+                    PgpSignature signature = generator.Generate();
+
+                    using (var transaction = new FileTransaction(signatureFilePath))
+                    {
+                        if (armor)
+                        {
+                            using var armored = new ArmoredOutputStream(transaction.Stream);
+                            signature.Encode(armored);
+                        }
+                        else
+                        {
+                            signature.Encode(transaction.Stream);
+                        }
+                        transaction.Commit(cancellationToken: cancellationToken);
+                    }
+
+                    progress?.Report("Signed.");
+                    return OperationResult.Succeeded(
+                        $"Signature written to {Path.GetFileName(signatureFilePath)}",
+                        signatureFilePath);
                 }
-
-                PgpSignature signature = generator.Generate();
-
-                using (Stream output = File.Create(signatureFilePath))
+                catch (OperationCanceledException)
                 {
-                    if (armor)
-                    {
-                        using var armored = new ArmoredOutputStream(output);
-                        signature.Encode(armored);
-                    }
-                    else
-                    {
-                        signature.Encode(output);
-                    }
+                    return OperationResult.Canceled("Signing cancelled.");
                 }
-
-                progress?.Report("Signed.");
-                return OperationResult.Succeeded(
-                    $"Signature written to {Path.GetFileName(signatureFilePath)}",
-                    signatureFilePath);
-            }
-            catch (OperationCanceledException)
-            {
-                TryDeleteFile(signatureFilePath);
-                return OperationResult.Failed("Signing cancelled.");
-            }
-            catch (Exception ex)
-            {
-                TryDeleteFile(signatureFilePath);
-                return OperationResult.Failed($"Signing failed: {ex.Message}");
-            }
-        }, cancellationToken);
+                catch (Exception ex)
+                {
+                    return OperationResult.Failed($"Signing failed: {ex.Message}");
+                }
+            });
+        }
+        finally { Array.Clear(ownedPassphrase); }
     }
 
     public async Task<SignatureVerification> VerifyFileAsync(
@@ -83,21 +88,23 @@ public class PgpSignatureService : IPgpSignatureService
                 cancellationToken.ThrowIfCancellationRequested();
                 progress?.Report($"Verifying {Path.GetFileName(inputFilePath)}...");
 
-                using Stream signatureIn = PgpUtilities.GetDecoderStream(File.OpenRead(signatureFilePath));
+                using Stream signatureFile = File.OpenRead(signatureFilePath);
+                CryptoInputLimits.CheckKey(signatureFile);
+                using Stream signatureIn = PgpUtilities.GetDecoderStream(signatureFile);
                 PgpSignature? signature = FirstSignature(new PgpObjectFactory(signatureIn));
 
                 if (signature is null)
                     return SignatureVerification.Failed("That file does not contain a signature.");
 
+                ValidateDocumentSignature(signature, clearText: false);
                 using Stream keyIn = OpenKeySource(publicKeySource, isFilePath);
-                var bundle = new PgpPublicKeyRingBundle(PgpUtilities.GetDecoderStream(keyIn));
+                var identity = new PgpKeyValidation(PgpKeyValidation.ReadPublic(keyIn));
 
-                PgpPublicKey? signerKey = bundle.GetPublicKey(signature.KeyId);
+                PgpPublicKey? signerKey = identity.VerificationKey(signature.KeyId);
                 if (signerKey is null)
                 {
-                    return SignatureVerification.Invalid(
-                        $"Signed by key 0x{signature.KeyId:X16}, which is not the key you selected. Import the signer's public key and try again.",
-                        $"0x{signature.KeyId:X16}");
+                    return SignatureVerification.Failed(
+                        $"Signed by key 0x{signature.KeyId:X16}, which is not the key you selected or is not a certified signing key. Import the signer's public key and try again.");
                 }
 
                 signature.InitVerify(signerKey);
@@ -107,7 +114,7 @@ public class PgpSignatureService : IPgpSignatureService
                     Feed(signature, input, cancellationToken);
                 }
 
-                return Describe(signature, signerKey, Path.GetFileName(inputFilePath), signature.Verify());
+                return Describe(signature, signerKey, identity, Path.GetFileName(inputFilePath), signature.Verify());
             }
             catch (OperationCanceledException)
             {
@@ -117,7 +124,7 @@ public class PgpSignatureService : IPgpSignatureService
             {
                 return SignatureVerification.Failed($"Verification failed: {ex.Message}");
             }
-        }, cancellationToken);
+        });
     }
 
     public async Task<OperationResult> SignTextAsync(
@@ -127,57 +134,66 @@ public class PgpSignatureService : IPgpSignatureService
         char[] passphrase,
         CancellationToken cancellationToken = default)
     {
-        return await Task.Run(() =>
+        char[] ownedPassphrase = (char[])passphrase.Clone();
+        try
         {
-            try
+            return await Task.Run(() =>
             {
-                // CanonicalTextDocument, not BinaryDocument: a clear-signed message is going to
-                // travel through mail clients and chat apps that rewrite line endings, and the
-                // canonical form is what makes the signature survive that.
-                PgpSignatureGenerator generator = StartSigning(
-                    privateKeySource, isFilePath, passphrase, PgpSignature.CanonicalTextDocument);
-
-                string[] lines = text.Replace("\r\n", "\n").Split('\n');
-
-                using var output = new MemoryStream();
-                using (var armored = new ArmoredOutputStream(output))
+                try
                 {
-                    armored.BeginClearText(SignatureHash);
+                    cancellationToken.ThrowIfCancellationRequested();
+                    CryptoInputLimits.CheckText(text);
+                    // CanonicalTextDocument, not BinaryDocument: a clear-signed message is going to
+                    // travel through mail clients and chat apps that rewrite line endings, and the
+                    // canonical form is what makes the signature survive that.
+                    PgpSignatureGenerator generator = StartSigning(
+                        privateKeySource, isFilePath, ownedPassphrase, PgpSignature.CanonicalTextDocument);
 
-                    for (int i = 0; i < lines.Length; i++)
+                    string[] lines = text.Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n').Split('\n');
+
+                    using var output = new MemoryStream();
+                    using (var armored = new ArmoredOutputStream(output))
                     {
-                        // Trailing whitespace is not part of what gets signed in canonical text
-                        // form, so it must not be hashed either, or the signature will not verify
-                        // in any other implementation.
-                        string line = lines[i].TrimEnd();
-                        byte[] bytes = Encoding.UTF8.GetBytes(line);
+                        armored.BeginClearText(SignatureHash);
 
-                        if (i > 0)
+                        for (int i = 0; i < lines.Length; i++)
                         {
-                            generator.Update((byte)'\r');
-                            generator.Update((byte)'\n');
+                            cancellationToken.ThrowIfCancellationRequested();
+                            // Trailing whitespace is not part of what gets signed in canonical text
+                            // form, so it must not be hashed either, or the signature will not verify
+                            // in any other implementation.
+                            string line = lines[i].TrimEnd(' ', '\t');
+                            byte[] bytes = Encoding.UTF8.GetBytes(line);
+
+                            if (i > 0)
+                            {
+                                generator.Update((byte)'\r');
+                                generator.Update((byte)'\n');
+                            }
+
+                            generator.Update(bytes);
+
+                            armored.Write(Encoding.UTF8.GetBytes(lines[i]));
+                            armored.Write("\r\n"u8.ToArray());
                         }
 
-                        generator.Update(bytes);
+                        armored.EndClearText();
 
-                        armored.Write(Encoding.UTF8.GetBytes(lines[i]));
-                        armored.Write("\r\n"u8.ToArray());
+                        using var bcpg = new BcpgOutputStream(armored);
+                        generator.Generate().Encode(bcpg);
                     }
 
-                    armored.EndClearText();
-
-                    using var bcpg = new BcpgOutputStream(armored);
-                    generator.Generate().Encode(bcpg);
+                    return OperationResult.Succeeded("Text signed.")
+                        with { Payload = Encoding.UTF8.GetString(output.ToArray()) };
                 }
-
-                return OperationResult.Succeeded("Text signed.")
-                    with { Payload = Encoding.UTF8.GetString(output.ToArray()) };
-            }
-            catch (Exception ex)
-            {
-                return OperationResult.Failed($"Signing failed: {ex.Message}");
-            }
-        }, cancellationToken);
+                catch (OperationCanceledException) { return OperationResult.Canceled("Signing cancelled."); }
+                catch (Exception ex)
+                {
+                    return OperationResult.Failed($"Signing failed: {ex.Message}");
+                }
+            });
+        }
+        finally { Array.Clear(ownedPassphrase); }
     }
 
     public async Task<SignatureVerification> VerifyTextAsync(
@@ -190,6 +206,8 @@ public class PgpSignatureService : IPgpSignatureService
         {
             try
             {
+                cancellationToken.ThrowIfCancellationRequested();
+                CryptoInputLimits.CheckText(clearSignedText);
                 using var input = new MemoryStream(Encoding.UTF8.GetBytes(clearSignedText));
                 using var armoredIn = new ArmoredInputStream(input);
 
@@ -199,17 +217,20 @@ public class PgpSignatureService : IPgpSignatureService
                 int character = armoredIn.ReadByte();
                 var lineBuffer = new MemoryStream();
                 bool firstLine = true;
+                bool previousCr = false;
 
                 while (character >= 0 && armoredIn.IsClearText())
                 {
-                    if (character == '\n')
+                    cancellationToken.ThrowIfCancellationRequested();
+                    if (character == '\r' || (character == '\n' && !previousCr))
                     {
                         AppendCanonicalLine(signedBytes, lineBuffer, ref firstLine);
                     }
-                    else if (character != '\r')
+                    else if (character != '\n')
                     {
                         lineBuffer.WriteByte((byte)character);
                     }
+                    previousCr = character == '\r';
                     character = armoredIn.ReadByte();
                 }
 
@@ -220,27 +241,28 @@ public class PgpSignatureService : IPgpSignatureService
                 if (signature is null)
                     return SignatureVerification.Failed("That text does not contain a signature.");
 
+                ValidateDocumentSignature(signature, clearText: true);
                 using Stream keyIn = OpenKeySource(publicKeySource, isFilePath);
-                var bundle = new PgpPublicKeyRingBundle(PgpUtilities.GetDecoderStream(keyIn));
+                var identity = new PgpKeyValidation(PgpKeyValidation.ReadPublic(keyIn));
 
-                PgpPublicKey? signerKey = bundle.GetPublicKey(signature.KeyId);
+                PgpPublicKey? signerKey = identity.VerificationKey(signature.KeyId);
                 if (signerKey is null)
                 {
-                    return SignatureVerification.Invalid(
-                        $"Signed by key 0x{signature.KeyId:X16}, which is not the key you selected. Import the signer's public key and try again.",
-                        $"0x{signature.KeyId:X16}");
+                    return SignatureVerification.Failed(
+                        $"Signed by key 0x{signature.KeyId:X16}, which is not the key you selected or is not a certified signing key. Import the signer's public key and try again.");
                 }
 
                 signature.InitVerify(signerKey);
                 signature.Update(signedBytes.ToArray());
 
-                return Describe(signature, signerKey, "this message", signature.Verify());
+                return Describe(signature, signerKey, identity, "this message", signature.Verify());
             }
+            catch (OperationCanceledException) { return SignatureVerification.Failed("Verification cancelled."); }
             catch (Exception ex)
             {
                 return SignatureVerification.Failed($"Verification failed: {ex.Message}");
             }
-        }, cancellationToken);
+        });
     }
 
     // --- Helpers ---
@@ -265,9 +287,9 @@ public class PgpSignatureService : IPgpSignatureService
         string privateKeySource, bool isFilePath, char[] passphrase, int signatureType)
     {
         using Stream keyIn = OpenKeySource(privateKeySource, isFilePath);
-        var bundle = new PgpSecretKeyRingBundle(PgpUtilities.GetDecoderStream(keyIn));
-
-        PgpSecretKey secretKey = PgpKeyRoles.FindSigningKey(bundle);
+        var ring = PgpKeyValidation.ReadSecret(keyIn);
+        var identity = new PgpKeyValidation(PgpKeyValidation.PublicRing(ring));
+        PgpSecretKey secretKey = identity.SigningKey(ring);
         PgpPrivateKey privateKey = PgpKeyRoles.ExtractPrivateKey(secretKey, passphrase);
 
         var generator = new PgpSignatureGenerator(secretKey.PublicKey.Algorithm, SignatureHash);
@@ -276,7 +298,7 @@ public class PgpSignatureService : IPgpSignatureService
         // Records who signed, so a verifier can show a name rather than a bare key id even before
         // the key is looked up. Unhashed would let anyone rewrite it, so it goes in the hashed
         // area where it is covered by the signature.
-        if (PgpKeyRoles.PrimaryUserId(secretKey.PublicKey) is { } userId)
+        if (identity.UserId is { } userId)
         {
             var packets = new PgpSignatureSubpacketGenerator();
             packets.AddSignerUserId(false, userId);
@@ -286,11 +308,24 @@ public class PgpSignatureService : IPgpSignatureService
         return generator;
     }
 
+    private static void ValidateDocumentSignature(PgpSignature signature, bool clearText)
+    {
+        if (clearText ? signature.SignatureType != PgpSignature.CanonicalTextDocument
+            : signature.SignatureType is not (PgpSignature.BinaryDocument or PgpSignature.CanonicalTextDocument))
+            throw new PgpException("This packet is not a supported document signature.");
+        // These are the document subpacket semantics interpreted here. Critical notation,
+        // intended-recipient restrictions and unsupported extensions cannot be ignored.
+        if ((signature.GetHashedSubPackets()?.GetCriticalTags() ?? []).Any(tag => (int)tag is not (2 or 3 or 16 or 28 or 33)))
+            throw new PgpException("This signature has critical requirements this app cannot check.");
+        if (signature.HashAlgorithm is not (HashAlgorithmTag.Sha224 or HashAlgorithmTag.Sha256 or HashAlgorithmTag.Sha384 or HashAlgorithmTag.Sha512))
+            throw new PgpException("This signature uses a legacy or unsupported digest. Verify it with a specialist tool and investigate before relying on it.");
+    }
+
     private static SignatureVerification Describe(
-        PgpSignature signature, PgpPublicKey signerKey, string what, bool valid)
+        PgpSignature signature, PgpPublicKey signerKey, PgpKeyValidation identity, string what, bool valid)
     {
         string keyId = $"0x{signature.KeyId:X16}";
-        string? userId = PgpKeyRoles.PrimaryUserId(signerKey);
+        string userId = identity.UserId;
 
         if (!valid)
         {
@@ -301,24 +336,22 @@ public class PgpSignatureService : IPgpSignatureService
 
         // A good signature from a key that should no longer be used is still a fact about the
         // bytes, so it is reported as valid with a caveat rather than quietly downgraded.
-        string? caveat = null;
-        if (signerKey.IsRevoked())
-        {
-            caveat = "The signing key has been revoked. The signature is genuine, but its owner has retired the key.";
-        }
-        else if (signerKey.GetValidSeconds() > 0 &&
-                 signerKey.CreationTime.AddSeconds(signerKey.GetValidSeconds()) < DateTime.UtcNow)
-        {
-            caveat = "The signing key has expired. The signature is genuine, and may have been made before it expired.";
-        }
+        if (signature.CreationTime > DateTime.UtcNow || signature.CreationTime < signerKey.CreationTime)
+            return SignatureVerification.Failed("The signature has an inconsistent creation date. Check your clock and the signing key.");
+        string? caveat = identity.Caveat(signerKey);
+        long lifetime = signature.GetHashedSubPackets()?.GetSignatureExpirationTime() ?? 0;
+        if (lifetime > 0 && (DateTime.UtcNow - signature.CreationTime).TotalSeconds >= lifetime)
+            caveat = "This signature has expired. " + caveat;
 
         return SignatureVerification.Valid(
             $"Good signature from {userId ?? keyId}.",
-            keyId, userId, signature.CreationTime, caveat);
+            keyId, userId, signature.CreationTime, caveat,
+            identity.Fingerprint, Convert.ToHexString(signerKey.GetFingerprint()));
     }
 
-    private static PgpSignature? FirstSignature(PgpObjectFactory factory)
+    private static PgpSignature? FirstSignature(PgpObjectFactory factory, int depth = 0)
     {
+        if (depth > 16) throw new PgpException("This signature has too many compression layers.");
         PgpObject? o = factory.NextPgpObject();
         while (o != null)
         {
@@ -326,7 +359,7 @@ public class PgpSignatureService : IPgpSignatureService
             {
                 // Signature files are sometimes compressed, gpg's --sign among them.
                 case PgpCompressedData compressed:
-                    return FirstSignature(new PgpObjectFactory(compressed.GetDataStream()));
+                    return FirstSignature(new PgpObjectFactory(compressed.GetDataStream()), depth + 1);
                 case PgpSignatureList list when list.Count > 0:
                     return list[0];
                 default:
@@ -363,8 +396,4 @@ public class PgpSignatureService : IPgpSignatureService
         ? File.OpenRead(keySource)
         : new MemoryStream(Encoding.UTF8.GetBytes(keySource));
 
-    private static void TryDeleteFile(string path)
-    {
-        try { if (File.Exists(path)) File.Delete(path); } catch { }
-    }
 }

@@ -8,7 +8,6 @@ using Org.BouncyCastle.Crypto.Generators;
 using Org.BouncyCastle.Crypto.Parameters;
 using Org.BouncyCastle.Math;
 using Org.BouncyCastle.Security;
-using Org.BouncyCastle.Utilities.IO;
 using PgpUtility.Models;
 
 namespace PgpUtility.Services;
@@ -45,23 +44,26 @@ public class PgpService : IPgpService
             try
             {
                 cancellationToken.ThrowIfCancellationRequested();
+                FileTransaction.RequireNewOutput(inputFilePath, outputFilePath);
                 progress?.Report($"Encrypting {Path.GetFileName(inputFilePath)}...");
 
                 PgpPublicKey encKey = isFilePath
                     ? ReadPublicKeyFromFile(publicKeySource)
                     : ReadPublicKeyFromString(publicKeySource);
 
-                using Stream outputStream = File.Create(outputFilePath);
+                using var transaction = new FileTransaction(outputFilePath);
 
                 if (armor)
                 {
-                    using var armoredStream = new ArmoredOutputStream(outputStream);
-                    Encrypt(inputFilePath, armoredStream, encKey);
+                    using var armoredStream = new ArmoredOutputStream(transaction.Stream);
+                    Encrypt(inputFilePath, armoredStream, encKey, cancellationToken);
                 }
                 else
                 {
-                    Encrypt(inputFilePath, outputStream, encKey);
+                    Encrypt(inputFilePath, transaction.Stream, encKey, cancellationToken);
                 }
+
+                transaction.Commit(cancellationToken: cancellationToken);
 
                 progress?.Report($"Encrypted {Path.GetFileName(inputFilePath)} successfully.");
                 return OperationResult.Succeeded(
@@ -70,15 +72,13 @@ public class PgpService : IPgpService
             }
             catch (OperationCanceledException)
             {
-                TryDeleteFile(outputFilePath);
-                return OperationResult.Failed("Encryption cancelled.");
+                return OperationResult.Canceled("Encryption cancelled.");
             }
             catch (Exception ex)
             {
-                TryDeleteFile(outputFilePath);
                 return OperationResult.Failed($"Encryption failed: {ex.Message}");
             }
-        }, cancellationToken);
+        });
     }
 
     public async Task<OperationResult> DecryptFileAsync(
@@ -90,39 +90,43 @@ public class PgpService : IPgpService
         IProgress<string>? progress = null,
         CancellationToken cancellationToken = default)
     {
-        return await Task.Run(() =>
+        char[] ownedPassphrase = (char[])passphrase.Clone();
+        try
         {
-            try
+            return await Task.Run(() =>
             {
-                cancellationToken.ThrowIfCancellationRequested();
-                progress?.Report($"Decrypting {Path.GetFileName(inputFilePath)}...");
+                try
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    FileTransaction.RequireNewOutput(inputFilePath, outputFilePath);
+                    progress?.Report($"Decrypting {Path.GetFileName(inputFilePath)}...");
 
-                using Stream input = File.OpenRead(inputFilePath);
-                using Stream keyIn = isFilePath
-                    ? File.OpenRead(privateKeySource)
-                    : new MemoryStream(Encoding.UTF8.GetBytes(privateKeySource));
+                    using Stream input = File.OpenRead(inputFilePath);
+                    using Stream keyIn = isFilePath
+                        ? File.OpenRead(privateKeySource)
+                        : new MemoryStream(Encoding.UTF8.GetBytes(privateKeySource));
 
-                bool integrityProtected = Decrypt(input, keyIn, passphrase, outputFilePath);
+                    bool integrityProtected = Decrypt(input, keyIn, ownedPassphrase, outputFilePath, cancellationToken);
 
-                progress?.Report($"Decrypted {Path.GetFileName(inputFilePath)} successfully.");
-                return OperationResult.Succeeded(
-                    $"File decrypted successfully: {Path.GetFileName(outputFilePath)}",
-                    outputFilePath,
-                    integrityProtected
-                        ? null
-                        : $"{Path.GetFileName(inputFilePath)} carried no integrity check, so there is no way to tell whether it was altered after it was encrypted. Trust its contents only as far as you trust where it came from.");
-            }
-            catch (OperationCanceledException)
-            {
-                TryDeleteFile(outputFilePath);
-                return OperationResult.Failed("Decryption cancelled.");
-            }
-            catch (Exception ex)
-            {
-                TryDeleteFile(outputFilePath);
-                return OperationResult.Failed($"Decryption failed: {ex.Message}");
-            }
-        }, cancellationToken);
+                    progress?.Report($"Decrypted {Path.GetFileName(inputFilePath)} successfully.");
+                    return OperationResult.Succeeded(
+                        $"File decrypted successfully: {Path.GetFileName(outputFilePath)}",
+                        outputFilePath,
+                        integrityProtected
+                            ? null
+                            : $"{Path.GetFileName(inputFilePath)} carried no integrity check, so there is no way to tell whether it was altered after it was encrypted. Trust its contents only as far as you trust where it came from.");
+                }
+                catch (OperationCanceledException)
+                {
+                    return OperationResult.Canceled("Decryption cancelled.");
+                }
+                catch (Exception ex)
+                {
+                    return OperationResult.Failed($"Decryption failed: {ex.Message}");
+                }
+            });
+        }
+        finally { Array.Clear(ownedPassphrase); }
     }
 
     public async Task<GeneratedKeyPair> GenerateKeyPairAsync(
@@ -130,6 +134,8 @@ public class PgpService : IPgpService
         IProgress<string>? progress = null,
         CancellationToken cancellationToken = default)
     {
+        options.Validate();
+        options = options.Snapshot();
         // Work from a private copy. Generation runs on a worker thread and the caller is entitled
         // to zero its own array the instant this returns.
         char[] passphrase = (char[])options.Passphrase.Clone();
@@ -184,13 +190,15 @@ public class PgpService : IPgpService
 
     public string CreateRevocationCertificate(string privateKeySource, bool isFilePath, char[] passphrase)
     {
-        using Stream keyIn = OpenKeySource(privateKeySource, isFilePath);
-        var bundle = new PgpSecretKeyRingBundle(PgpUtilities.GetDecoderStream(keyIn));
-
-        PgpSecretKeyRing ring = bundle.GetKeyRings().Cast<PgpSecretKeyRing>().FirstOrDefault()
-            ?? throw new ArgumentException("No secret key found in key data.");
-
-        return CreateRevocationCertificate(ring, passphrase);
+        char[] owned = (char[])passphrase.Clone();
+        try
+        {
+            using Stream keyIn = OpenKeySource(privateKeySource, isFilePath);
+            var ring = PgpKeyValidation.ReadSecret(keyIn);
+            _ = new PgpKeyValidation(PgpKeyValidation.PublicRing(ring));
+            return CreateRevocationCertificate(ring, owned);
+        }
+        finally { Array.Clear(owned); }
     }
 
     private static string CreateRevocationCertificate(PgpSecretKeyRing ring, char[] passphrase)
@@ -231,49 +239,23 @@ public class PgpService : IPgpService
     public PgpKeyInfo ReadPublicKeyInfo(string keySource, bool isFilePath)
     {
         using Stream keyIn = OpenKeySource(keySource, isFilePath);
-        using Stream decoderStream = PgpUtilities.GetDecoderStream(keyIn);
-
-        var bundle = new PgpPublicKeyRingBundle(decoderStream);
-        foreach (PgpPublicKeyRing ring in bundle.GetKeyRings())
-        {
-            PgpPublicKey masterKey = ring.GetPublicKeys().Cast<PgpPublicKey>().First();
-            return Describe(masterKey, hasPrivateKey: false);
-        }
-
-        throw new ArgumentException("No public key found in key data.");
+        return new PgpKeyValidation(PgpKeyValidation.ReadPublic(keyIn)).Describe(hasPrivateKey: false);
     }
 
     public PgpKeyInfo ReadPrivateKeyInfo(string keySource, bool isFilePath)
     {
         using Stream keyIn = OpenKeySource(keySource, isFilePath);
-        using Stream decoderStream = PgpUtilities.GetDecoderStream(keyIn);
-
-        var bundle = new PgpSecretKeyRingBundle(decoderStream);
-        foreach (PgpSecretKeyRing ring in bundle.GetKeyRings())
-        {
-            PgpSecretKey masterKey = ring.GetSecretKeys().Cast<PgpSecretKey>().First();
-            return Describe(masterKey.PublicKey, hasPrivateKey: true);
-        }
-
-        throw new ArgumentException("No secret key found in key data.");
+        var ring = PgpKeyValidation.ReadSecret(keyIn);
+        return new PgpKeyValidation(PgpKeyValidation.PublicRing(ring)).Describe(
+            hasPrivateKey: ring.GetSecretKeys().Any(k => !k.IsPrivateKeyEmpty), secret: ring);
     }
 
     public string ExtractPublicKeyFromPrivateKey(string privateKeySource, bool isFilePath)
     {
         using Stream keyIn = OpenKeySource(privateKeySource, isFilePath);
-        using Stream decoderStream = PgpUtilities.GetDecoderStream(keyIn);
-
-        var bundle = new PgpSecretKeyRingBundle(decoderStream);
-        foreach (PgpSecretKeyRing ring in bundle.GetKeyRings())
-        {
-            return Armor(output =>
-            {
-                foreach (PgpSecretKey secretKey in ring.GetSecretKeys())
-                    secretKey.PublicKey.Encode(output);
-            });
-        }
-
-        throw new ArgumentException("No secret key found in key data.");
+        var ring = PgpKeyValidation.PublicRing(PgpKeyValidation.ReadSecret(keyIn));
+        _ = new PgpKeyValidation(ring);
+        return Armor(ring.Encode);
     }
 
     // --- Key generation ---
@@ -377,7 +359,7 @@ public class PgpService : IPgpService
             null,
             random);
 
-        ringGen.AddSubKey(encryptionSubKey, subKeyPackets.Generate(), null);
+        ringGen.AddSubKey(encryptionSubKey, subKeyPackets.Generate(), null, HashAlgorithmTag.Sha256);
 
         return (ringGen.GeneratePublicKeyRing(), ringGen.GenerateSecretKeyRing());
     }
@@ -423,8 +405,8 @@ public class PgpService : IPgpService
     private static void SetExpiry(PgpSignatureSubpacketGenerator packets, DateTime expiry, DateTime now)
     {
         long seconds = (long)(expiry - now).TotalSeconds;
-        if (seconds > 0)
-            packets.SetKeyExpirationTime(false, seconds);
+        if (seconds <= 0) throw new ArgumentException("Choose an expiry date in the future.");
+        packets.SetKeyExpirationTime(false, seconds);
     }
 
     // --- Text ---
@@ -439,6 +421,8 @@ public class PgpService : IPgpService
         {
             try
             {
+                cancellationToken.ThrowIfCancellationRequested();
+                CryptoInputLimits.CheckText(text);
                 PgpPublicKey encKey = isFilePath
                     ? ReadPublicKeyFromFile(publicKeySource)
                     : ReadPublicKeyFromString(publicKeySource);
@@ -450,18 +434,20 @@ public class PgpService : IPgpService
                 // carries text, so raw binary would be useless here.
                 using (var armored = new ArmoredOutputStream(output))
                 {
-                    EncryptCore(plaintext, "message.txt", DateTime.UtcNow, armored, encKey);
+                    EncryptCore(plaintext, "message.txt", DateTime.UtcNow, armored, encKey, cancellationToken);
                 }
 
+                cancellationToken.ThrowIfCancellationRequested();
                 return OperationResult.Succeeded(
                     "Text encrypted.", null)
                     with { Payload = Encoding.UTF8.GetString(output.ToArray()) };
             }
+            catch (OperationCanceledException) { return OperationResult.Canceled("Encryption cancelled."); }
             catch (Exception ex)
             {
                 return OperationResult.Failed($"Encryption failed: {ex.Message}");
             }
-        }, cancellationToken);
+        });
     }
 
     public async Task<OperationResult> DecryptTextAsync(
@@ -471,38 +457,46 @@ public class PgpService : IPgpService
         char[] passphrase,
         CancellationToken cancellationToken = default)
     {
-        return await Task.Run(() =>
+        char[] ownedPassphrase = (char[])passphrase.Clone();
+        try
         {
-            try
+            return await Task.Run(() =>
             {
-                using var input = new MemoryStream(Encoding.UTF8.GetBytes(armoredText));
-                using Stream keyIn = OpenKeySource(privateKeySource, isFilePath);
-                using var output = new MemoryStream();
+                try
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    CryptoInputLimits.CheckText(armoredText);
+                    using var input = new MemoryStream(Encoding.UTF8.GetBytes(armoredText));
+                    using Stream keyIn = OpenKeySource(privateKeySource, isFilePath);
+                    using var output = new MemoryStream();
 
-                bool integrityProtected = DecryptCore(input, keyIn, passphrase, output);
+                    bool integrityProtected = DecryptCore(input, keyIn, ownedPassphrase, output, cancellationToken);
 
-                return OperationResult.Succeeded(
-                    "Text decrypted.",
-                    null,
-                    integrityProtected
-                        ? null
-                        : "This message carried no integrity check, so there is no way to tell whether it was altered after it was encrypted.")
-                    with { Payload = Encoding.UTF8.GetString(output.ToArray()) };
-            }
-            catch (Exception ex)
-            {
-                return OperationResult.Failed($"Decryption failed: {ex.Message}");
-            }
-        }, cancellationToken);
+                    return OperationResult.Succeeded(
+                        "Text decrypted.",
+                        null,
+                        integrityProtected
+                            ? null
+                            : "This message carried no integrity check, so there is no way to tell whether it was altered after it was encrypted.")
+                        with { Payload = Encoding.UTF8.GetString(output.ToArray()) };
+                }
+                catch (OperationCanceledException) { return OperationResult.Canceled("Decryption cancelled."); }
+                catch (Exception ex)
+                {
+                    return OperationResult.Failed($"Decryption failed: {ex.Message}");
+                }
+            });
+        }
+        finally { Array.Clear(ownedPassphrase); }
     }
 
     // --- Encryption and decryption ---
 
-    private static void Encrypt(string inputFilePath, Stream outputStream, PgpPublicKey encKey)
+    private static void Encrypt(string inputFilePath, Stream outputStream, PgpPublicKey encKey, CancellationToken cancellationToken)
     {
         using Stream input = File.OpenRead(inputFilePath);
         var info = new FileInfo(inputFilePath);
-        EncryptCore(input, info.Name, info.LastWriteTimeUtc, outputStream, encKey);
+        EncryptCore(input, info.Name, info.LastWriteTimeUtc, outputStream, encKey, cancellationToken);
     }
 
     /// <summary>
@@ -510,7 +504,7 @@ public class PgpService : IPgpService
     /// drift apart on cipher, compression or integrity protection.
     /// </summary>
     private static void EncryptCore(
-        Stream input, string fileName, DateTime modificationTime, Stream outputStream, PgpPublicKey encKey)
+        Stream input, string fileName, DateTime modificationTime, Stream outputStream, PgpPublicKey encKey, CancellationToken cancellationToken)
     {
         // withIntegrityPacket is fixed at true and is not a caller choice. An OpenPGP message
         // without a modification detection code is malleable: an attacker who cannot read the
@@ -526,36 +520,23 @@ public class PgpService : IPgpService
         using Stream literalOut = literalGen.Open(
             compressedOut, PgpLiteralData.Binary, fileName, modificationTime, new byte[BufferSize]);
 
-        input.CopyTo(literalOut, BufferSize);
+        Copy(input, literalOut, cancellationToken);
     }
 
     /// <returns>
     /// True if the message carried an integrity check and it verified. False if the message had
     /// no integrity check at all. A check that is present and fails throws instead.
     /// </returns>
-    private static bool Decrypt(Stream inputStream, Stream keyIn, char[] passPhrase, string outputFilePath)
+    private static bool Decrypt(Stream inputStream, Stream keyIn, char[] passPhrase, string outputFilePath, CancellationToken cancellationToken)
     {
         // The plaintext goes to a temporary file first. The integrity check can only be verified
         // once the whole stream has been read, so writing straight to the destination would leave
         // altered plaintext sitting at the path the user asked for, even for the moment it takes
         // to delete it again.
-        string tempPath = outputFilePath + ".partial";
-
-        try
-        {
-            bool integrityProtected;
-            using (Stream output = File.Create(tempPath))
-            {
-                integrityProtected = DecryptCore(inputStream, keyIn, passPhrase, output);
-            }
-
-            File.Move(tempPath, outputFilePath, overwrite: true);
-            return integrityProtected;
-        }
-        finally
-        {
-            TryDeleteFile(tempPath);
-        }
+        using var transaction = new FileTransaction(outputFilePath);
+        bool integrityProtected = DecryptCore(inputStream, keyIn, passPhrase, transaction.Stream, cancellationToken);
+        transaction.Commit(cancellationToken: cancellationToken);
+        return integrityProtected;
     }
 
     /// <summary>
@@ -573,9 +554,10 @@ public class PgpService : IPgpService
     /// True if the message carried an integrity check and it verified. False if it had none at
     /// all. A check that is present and fails throws instead.
     /// </returns>
-    private static bool DecryptCore(Stream inputStream, Stream keyIn, char[] passPhrase, Stream output)
+    private static bool DecryptCore(Stream inputStream, Stream keyIn, char[] passPhrase, Stream output, CancellationToken cancellationToken)
     {
-        inputStream = PgpUtilities.GetDecoderStream(inputStream);
+        using var cancellable = new CancellationReadStream(inputStream, cancellationToken);
+        inputStream = PgpUtilities.GetDecoderStream(cancellable);
         var pgpObjFactory = new PgpObjectFactory(inputStream);
 
         PgpObject o = pgpObjFactory.NextPgpObject();
@@ -583,15 +565,15 @@ public class PgpService : IPgpService
             ? list
             : (PgpEncryptedDataList)pgpObjFactory.NextPgpObject();
 
-        var pgpSec = new PgpSecretKeyRingBundle(PgpUtilities.GetDecoderStream(keyIn));
+        var secretRing = PgpKeyValidation.ReadSecret(keyIn);
 
         PgpPrivateKey? sKey = null;
         PgpPublicKeyEncryptedData? pbe = null;
 
-        foreach (PgpPublicKeyEncryptedData pked in enc.GetEncryptedDataObjects().Cast<PgpPublicKeyEncryptedData>())
+        foreach (PgpPublicKeyEncryptedData pked in enc.GetEncryptedDataObjects().OfType<PgpPublicKeyEncryptedData>())
         {
-            PgpSecretKey? secretKey = pgpSec.GetSecretKey(pked.KeyId);
-            if (secretKey == null)
+            PgpSecretKey? secretKey = secretRing.GetSecretKey(pked.KeyId);
+            if (secretKey is null || secretKey.IsPrivateKeyEmpty)
                 continue;
 
             sKey = ExtractPrivateKey(secretKey, passPhrase);
@@ -611,12 +593,13 @@ public class PgpService : IPgpService
 
         using (Stream unc = ld.GetInputStream())
         {
-            Streams.PipeAll(unc, output);
+            Copy(unc, output, cancellationToken);
         }
 
         // Verified before returning, and while the encrypted stream is still open: Verify()
         // drains whatever is left of it to reach the trailing MDC packet, so moving this after
         // the using block silently stops it working.
+        cancellationToken.ThrowIfCancellationRequested();
         bool integrityProtected = pbe.IsIntegrityProtected();
         if (integrityProtected && !pbe.Verify())
         {
@@ -624,21 +607,23 @@ public class PgpService : IPgpService
                 "the integrity check failed. This file was altered after it was encrypted, so the decrypted output has been discarded.");
         }
 
+        cancellationToken.ThrowIfCancellationRequested();
         return integrityProtected;
     }
 
     private static PgpPrivateKey ExtractPrivateKey(PgpSecretKey secretKey, char[] passPhrase) =>
         PgpKeyRoles.ExtractPrivateKey(secretKey, passPhrase);
 
-    private static PgpObject? UnwrapToLiteral(PgpObjectFactory factory)
+    private static PgpObject? UnwrapToLiteral(PgpObjectFactory factory, int depth = 0)
     {
+        if (depth > 16) throw new PgpException("This message has too many compression layers.");
         PgpObject? obj = factory.NextPgpObject();
         while (obj != null)
         {
             switch (obj)
             {
                 case PgpCompressedData compressed:
-                    return UnwrapToLiteral(new PgpObjectFactory(compressed.GetDataStream()));
+                    return UnwrapToLiteral(new PgpObjectFactory(compressed.GetDataStream()), depth + 1);
                 case PgpOnePassSignatureList:
                 case PgpSignatureList:
                 case PgpMarker:
@@ -654,20 +639,6 @@ public class PgpService : IPgpService
     }
 
     // --- Reading keys ---
-
-    private static PgpKeyInfo Describe(PgpPublicKey key, bool hasPrivateKey) => new()
-    {
-        KeyId = $"0x{key.KeyId:X16}",
-        UserId = key.GetUserIds().Cast<string>().FirstOrDefault() ?? "Unknown",
-        Fingerprint = Convert.ToHexString(key.GetFingerprint()),
-        Algorithm = key.Algorithm.ToString(),
-        KeySize = key.BitStrength,
-        CreationDate = key.CreationTime,
-        ExpirationDate = key.GetValidSeconds() > 0
-            ? key.CreationTime.AddSeconds(key.GetValidSeconds())
-            : null,
-        HasPrivateKey = hasPrivateKey
-    };
 
     private static Stream OpenKeySource(string keySource, bool isFilePath) => isFilePath
         ? File.OpenRead(keySource)
@@ -687,19 +658,7 @@ public class PgpService : IPgpService
 
     private static PgpPublicKey ReadPublicKeyFromStream(Stream keyIn)
     {
-        using Stream inputStream = PgpUtilities.GetDecoderStream(keyIn);
-        var publicKeyRingBundle = new PgpPublicKeyRingBundle(inputStream);
-
-        foreach (PgpPublicKeyRing keyRing in publicKeyRingBundle.GetKeyRings())
-        {
-            foreach (PgpPublicKey key in keyRing.GetPublicKeys())
-            {
-                if (key.IsEncryptionKey)
-                    return key;
-            }
-        }
-
-        throw new ArgumentException("No encryption key found in public key ring.");
+        return new PgpKeyValidation(PgpKeyValidation.ReadPublic(keyIn)).EncryptionKey();
     }
 
     private static string Armor(Action<Stream> encode, (string Name, string Value)[]? headers = null)
@@ -715,8 +674,22 @@ public class PgpService : IPgpService
         return Encoding.UTF8.GetString(buffer.ToArray());
     }
 
-    private static void TryDeleteFile(string path)
+    private static void Copy(Stream input, Stream output, CancellationToken cancellationToken)
     {
-        try { if (File.Exists(path)) File.Delete(path); } catch { }
+        byte[] buffer = new byte[BufferSize];
+        try
+        {
+            int read;
+            while (true)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                read = input.Read(buffer, 0, buffer.Length);
+                if (read == 0) break;
+                if (output is MemoryStream && output.Length + read > CryptoInputLimits.TextBytes)
+                    throw new PgpException("The decrypted text exceeds 16 MiB. Use the Files tab to decrypt it safely.");
+                output.Write(buffer, 0, read);
+            }
+        }
+        finally { Array.Clear(buffer); }
     }
 }

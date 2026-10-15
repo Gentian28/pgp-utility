@@ -1,3 +1,4 @@
+using PgpUtility.Services;
 using Avalonia.Controls;
 using Avalonia.Platform.Storage;
 
@@ -16,7 +17,7 @@ public sealed class StorageFilePickerService : IFilePickerService
     /// </param>
     public StorageFilePickerService(Func<TopLevel?> topLevel) => _topLevel = topLevel;
 
-    public async Task<IReadOnlyList<string>> OpenFilesAsync(string title, params FilePickerFileType[] fileTypes)
+    public async Task<IReadOnlyList<string>> OpenFilesAsync(string title, params PgpFileType[] fileTypes)
     {
         IStorageProvider? storage = _topLevel()?.StorageProvider;
         if (storage is null) return [];
@@ -31,7 +32,7 @@ public sealed class StorageFilePickerService : IFilePickerService
         return files.Select(LocalPath).OfType<string>().ToList();
     }
 
-    public async Task<string?> OpenFileAsync(string title, params FilePickerFileType[] fileTypes)
+    public async Task<string?> OpenFileAsync(string title, params PgpFileType[] fileTypes)
     {
         IStorageProvider? storage = _topLevel()?.StorageProvider;
         if (storage is null) return null;
@@ -46,7 +47,7 @@ public sealed class StorageFilePickerService : IFilePickerService
         return files.Count > 0 ? LocalPath(files[0]) : null;
     }
 
-    public async Task<string?> SaveFileAsync(string title, string suggestedFileName, params FilePickerFileType[] fileTypes)
+    public async Task<string?> SaveFileAsync(string title, string suggestedFileName, params PgpFileType[] fileTypes)
     {
         IStorageProvider? storage = _topLevel()?.StorageProvider;
         if (storage is null) return null;
@@ -75,8 +76,8 @@ public sealed class StorageFilePickerService : IFilePickerService
         return folders.Count > 0 ? LocalPath(folders[0]) : null;
     }
 
-    private static List<FilePickerFileType>? Filters(FilePickerFileType[] fileTypes) =>
-        fileTypes.Length == 0 ? null : [.. fileTypes, FilePickerFileTypes.All];
+    private static List<FilePickerFileType>? Filters(PgpFileType[] fileTypes) =>
+        fileTypes.Length == 0 ? null : [.. fileTypes.Select(NativeFileTypes.Convert), FilePickerFileTypes.All];
 
     /// <summary>
     /// The real path on disk, or null if the item has none.

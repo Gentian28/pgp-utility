@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ```bash
 dotnet build PgpUtility.slnx                 # must end with 0 warnings, analyzers are on
-dotnet test PgpUtility.slnx                  # ~71 tests, about 40 seconds
+dotnet test PgpUtility.slnx                  # Core regression and GnuPG interoperability suite
 dotnet test PgpUtility.slnx --filter "FullyQualifiedName~GnuPgInterop"
 dotnet run --project src/PgpUtility.App      # launch the app
 python packaging/icon/make-icon.py           # regenerate every icon asset
@@ -34,7 +34,7 @@ positioning.
 ## Architecture
 
 ```
-src/PgpUtility.Core/    net8.0, no UI dependency. Models/ and Services/.
+src/PgpUtility.Core/    net10.0, no UI dependency. Models/, Services/ and toolkit-neutral ViewModels/.
 src/PgpUtility.App/     Avalonia 11, MVVM via CommunityToolkit. WinExe, four RIDs.
 src/PgpUtility.Tests/   xUnit + AwesomeAssertions. References Core only.
 ```
@@ -115,15 +115,15 @@ later needs the private key and passphrase, and losing either is the main reason
 
 ## Key store
 
-`KeyStoreLocation.Default()` picks the per-platform convention, including
-`~/Library/Application Support` on macOS rather than the `~/.config` that .NET's `ApplicationData`
-maps to there. Every write goes through `WriteIntoStoreAsync` or `CopyIntoStoreAsync` so there is
-**one place** the file mode is applied: 0700 on the directory, 0600 on key files, including keys
-copied in from a world-readable source and private keys exported to a folder the user chose.
-Windows is left to its inherited ACL.
+`KeyStoreLocation.Default()` follows platform conventions. The store serializes changes across
+instances with a named mutex and rebuilds its index cache from validated key files. Corrupt indexes
+are preserved. Full fingerprints name new files; legacy names migrate on import. Import merges
+certifications and preserves known revocations in both public and secret rings.
 
-A route that wrote a key without going through those two would be world-readable on Unix and show
-no symptom on Windows, which is why the tests for this only mean anything off Windows.
+`FileTransaction` exclusively creates unique staging files with 0600 on Unix and an owner-only
+ACL on Windows before writing any bytes. It commits without replacement by default. Only internal
+store updates explicitly replace files. Never delete a destination in a failure handler. Backups
+are ZIP archives of existing protected key packets and revocation material, with no archive password.
 
 ## UI notes
 

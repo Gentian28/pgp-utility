@@ -10,15 +10,9 @@ keys are never sent anywhere, because there is nowhere for them to be sent.
 
 ## Why this exists
 
-There is no shortage of OpenPGP tools. Most of them are one of two things: a command line that
-assumes you already know what a subkey is, or a GUI wrapped around a keyserver and a cloud
-account.
-
-This one is for the case in between. You have a file or a message, you have someone's public key,
-and you want the thing done without learning gpg's flag syntax or signing up for anything. It
-tells you what it is doing in the words a person would use, it refuses the options that only make
-you less safe, and it says plainly when something cannot be verified rather than showing a green
-tick and hoping.
+This is for occasional OpenPGP tasks: you have a file or message and a public key, and want
+clear local controls for completing the exchange. It shows which fingerprint was used, preserves
+existing files, and distinguishes an invalid signature from a check it could not perform.
 
 It is a sibling to [resume-builder](https://github.com/Gentian28/resume-builder), and shares its
 position: a real desktop application that runs entirely on your machine and sends nothing
@@ -33,7 +27,8 @@ anywhere.
 - **Sign and verify.** Detached signatures, so the original file is untouched and someone without
   this tool can still open it. Clear-signed blocks for text.
 - **Keys.** Generate Ed25519 or RSA, import, export, search. Fingerprints are grouped so you can
-  actually compare them by eye.
+  actually compare them by eye. Back up and restore the store, extend expiry, change passphrases,
+  and save or apply revocation certificates. Deletion requires confirmation of the selected fingerprint.
 
 | Files | Text | Sign and verify |
 |---|---|---|
@@ -51,12 +46,13 @@ anywhere.
   you have lost access to, and it cannot be created later, because creating it needs the private
   key and passphrase you would have lost.
 - Keys are stored per-platform, and on macOS and Linux the key directory is `0700` and key files
-  are `0600`.
+  are `0600`. New sensitive files use owner-only Windows ACLs from creation.
 - Passphrases are held as character arrays and cleared after use. This narrows the window in which
   a passphrase sits in memory. It is not protection against a machine that is already compromised.
 
-Interoperability with GnuPG is tested in both directions on all three platforms in CI, not
-assumed.
+Encryption and signing interoperability with GnuPG are tested in both directions. CI runs the
+suite on Windows, macOS and Linux. GnuPG checks are mandatory on Linux; other platforms can
+skip them if their GnuPG agent is unavailable.
 
 **This project has not been independently audited.** See [SECURITY.md](SECURITY.md).
 
@@ -68,10 +64,8 @@ On Windows, winget is the shortest route:
 winget install Gentian28.PgpUtility
 ```
 
-That installs **1.1.0**, the current release. The community repository accepted the first
-submission on 2026-08-18, eighteen days after it was opened, and the 1.1.0 bump on 2026-09-21,
-thirty-four days after its own. A bump waits on that review each time, so the index can trail a
-new release here by a few weeks. The release below is always current.
+The winget index may trail a new GitHub release while its submission is reviewed. Compare the
+installed version in the app footer with the release you intended to use.
 
 Otherwise download from the [latest release](https://github.com/Gentian28/pgp-utility/releases/latest).
 
@@ -109,8 +103,7 @@ chmod +x PgpUtility.AppImage
 
 ### Verifying a download
 
-Each release includes `SHA256SUMS-<platform>.txt`. Since nothing is signed, this is the check
-worth doing:
+Each release includes `SHA256SUMS-<platform>.txt`. Compare the hash of the exact file you downloaded:
 
 ```bash
 sha256sum -c SHA256SUMS-win.txt        # Linux
@@ -121,13 +114,17 @@ shasum -a 256 -c SHA256SUMS-osx.txt    # macOS
 Get-FileHash PgpUtility-win-Setup.exe -Algorithm SHA256   # Windows, compare by eye
 ```
 
+For builds that include GitHub artifact attestations, also follow the
+[release verification guide](docs/release-verification.md). Checksums detect corruption; an
+attestation ties a file to the repository build. Neither replaces platform code signing.
+
 ### Code signing
 
 An application to the [SignPath Foundation](https://signpath.org/) free code-signing programme
 was declined in August 2026. The programme requires public adoption signals (stars, forks,
 independent references) that a newly published project does not yet have, and it will be
 reapplied for once the project has them. Until then the warnings above apply and the checksums
-are the verification that counts.
+remain available.
 
 ## Where your keys are stored
 
@@ -139,9 +136,17 @@ are the verification that counts.
 
 Set `PGPUTILITY_KEY_STORE` to put them somewhere else, such as a removable drive.
 
+## Safe first use
+
+Follow the [first exchange and recovery guide](docs/first-use.md). See the
+[compatibility limits](docs/compatibility.md) before importing keys from another tool.
+
+The screenshots above show the last released interface. The approved safety and recovery UI is
+in [the design record](design/safety-and-recovery.html); visual verification is pending.
+
 ## Build from source
 
-Requires the [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0).
+Requires the [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0).
 
 ```bash
 dotnet build PgpUtility.slnx
@@ -155,7 +160,7 @@ to turn a skip into a failure, which is what CI does.
 ## Project layout
 
 ```
-src/PgpUtility.Core/    Models and services. No UI dependency, so it is what the tests target.
+src/PgpUtility.Core/    Models, services and toolkit-neutral view models. No desktop dependency, so it is what the tests target.
 src/PgpUtility.App/     Avalonia 11 desktop UI, MVVM via CommunityToolkit.
 src/PgpUtility.Tests/   xUnit. Round trips, failure modes, permissions, GnuPG interoperability.
 packaging/icon/         Icon sources, all generated by make-icon.py.

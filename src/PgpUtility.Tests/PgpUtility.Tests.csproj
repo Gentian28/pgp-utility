@@ -18,7 +18,7 @@
     <Using Include="AwesomeAssertions" />
   </ItemGroup>
 
-  <!-- Only PgpUtility.Core. The App project is a WinExe on net8.0-windows, so referencing it
+  <!-- Only PgpUtility.Core. The App project is a desktop WinExe, so referencing it
        would pin this suite to Windows and defeat the point of running it on three platforms. -->
   <ItemGroup>
     <ProjectReference Include="..\PgpUtility.Core\PgpUtility.Core.csproj" />

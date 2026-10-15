@@ -1,11 +1,10 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using PgpUtility.App.Services;
 using PgpUtility.Models;
 using PgpUtility.Services;
 
-namespace PgpUtility.App.ViewModels;
+namespace PgpUtility.ViewModels;
 
 public partial class SignVerifyViewModel : ViewModelBase
 {
@@ -13,6 +12,7 @@ public partial class SignVerifyViewModel : ViewModelBase
     private readonly IKeyStoreService _keyStoreService;
     private readonly IFilePickerService _filePicker;
     private readonly Action<string> _addLog;
+    private readonly OperationRevision _revision = new();
 
     public event EventHandler? PassphraseCleared;
 
@@ -60,6 +60,7 @@ public partial class SignVerifyViewModel : ViewModelBase
         _keyStoreService = keyStoreService;
         _filePicker = filePicker;
         _addLog = addLog;
+        ReportFailure = addLog;
         RefreshKeys();
     }
 
@@ -68,25 +69,35 @@ public partial class SignVerifyViewModel : ViewModelBase
     partial void OnIsSignModeChanged(bool value)
     {
         // A verdict from the other mode would be stale and misleading the moment the mode flips.
-        Result = null;
+        Invalidate();
+        Passphrase = [];
+        PassphraseCleared?.Invoke(this, EventArgs.Empty);
         RefreshKeys();
     }
 
+    partial void OnFilePathChanged(string value) => Invalidate();
+    partial void OnSignaturePathChanged(string value) => Invalidate();
+    partial void OnSelectedKeyIdChanged(string? value) => Invalidate();
+    private void Invalidate() { _revision.Next(); Result = null; StatusMessage = string.Empty; }
+
     public void RefreshKeys()
     {
+        if (IsBusy) return;
+        string? selected = SelectedKeyId;
         AvailableKeys.Clear();
 
         // Signing needs a secret key; verifying only needs the signer's public one. Offering keys
         // that cannot do the job just produces a confusing failure later.
         foreach (var key in _keyStoreService.GetAllKeys())
         {
-            if (!IsSignMode || key.HasPrivateKey)
+            if (!IsSignMode || (key.HasPrivateKey && key.CanSign))
                 AvailableKeys.Add(key);
         }
+        SelectedKeyId = AvailableKeys.Any(k => k.KeyId == selected) ? selected : null;
     }
 
     [RelayCommand]
-    private async Task BrowseFileAsync()
+    private Task BrowseFileAsync() => GuardAsync(async () =>
     {
         string? file = await _filePicker.OpenFileAsync(
             IsSignMode ? "Select a file to sign" : "Select the file to check");
@@ -98,14 +109,14 @@ public partial class SignVerifyViewModel : ViewModelBase
             if (IsVerifyMode && string.IsNullOrEmpty(SignaturePath) && File.Exists(file + ".sig"))
                 SignaturePath = file + ".sig";
         }
-    }
+    });
 
     [RelayCommand]
-    private async Task BrowseSignatureAsync()
+    private Task BrowseSignatureAsync() => GuardAsync(async () =>
     {
         string? file = await _filePicker.OpenFileAsync("Select the signature", PgpFileTypes.Signatures);
         if (file != null) SignaturePath = file;
-    }
+    });
 
     public void AcceptDroppedFiles(IReadOnlyList<string> paths)
     {
@@ -137,48 +148,59 @@ public partial class SignVerifyViewModel : ViewModelBase
     {
         IsBusy = true;
         Result = null;
-        var progress = new Progress<string>(msg => { StatusMessage = msg; _addLog(msg); });
+        int revision = _revision.Next();
+        bool sign = IsSignMode;
+        string input = FilePath;
+        string selectedSignature = SignaturePath;
+        bool armor = AsciiArmor;
+        char[] passphrase = (char[])Passphrase.Clone();
+        var progress = new Progress<string>(msg => { if (IsBusy && _revision.IsCurrent(revision)) { StatusMessage = msg; _addLog(msg); } });
 
         try
         {
-            string? keyPath = _keyStoreService.GetKeyFilePath(SelectedKeyId!, privateKey: IsSignMode);
+            string? keyPath = _keyStoreService.GetKeyFilePath(SelectedKeyId!, privateKey: sign);
             if (keyPath == null)
             {
                 StatusMessage = "That key is not in the store any more.";
                 return;
             }
 
-            if (IsSignMode)
+            if (sign)
             {
-                string signaturePath = FilePath + (AsciiArmor ? ".asc" : ".sig");
+                string signaturePath = input + (armor ? ".asc" : ".sig");
                 OperationResult signed = await _signatures.SignFileAsync(
-                    FilePath, signaturePath, keyPath, isFilePath: true, Passphrase, AsciiArmor, progress);
+                    input, signaturePath, keyPath, isFilePath: true, passphrase, armor, progress);
 
+                if (!_revision.IsCurrent(revision)) return;
+                if (signed.Success) SignaturePath = signaturePath;
                 StatusMessage = signed.Message;
                 _addLog(signed.Message);
-                if (signed.Success) SignaturePath = signaturePath;
             }
             else
             {
-                Result = await _signatures.VerifyFileAsync(
-                    FilePath, SignaturePath, keyPath, isFilePath: true, progress);
+                var result = await _signatures.VerifyFileAsync(input, selectedSignature, keyPath, isFilePath: true, progress);
+                if (!_revision.IsCurrent(revision)) return;
+                Result = result;
                 StatusMessage = Result.Message;
                 _addLog(Result.Message);
             }
         }
         catch (Exception ex)
         {
+            if (!_revision.IsCurrent(revision)) return;
             StatusMessage = $"Error: {ex.Message}";
             _addLog(StatusMessage);
         }
         finally
         {
-            if (IsSignMode)
+            Array.Clear(passphrase);
+            if (sign)
             {
                 Passphrase = Array.Empty<char>();
                 PassphraseCleared?.Invoke(this, EventArgs.Empty);
             }
             IsBusy = false;
+            RefreshKeys();
         }
     }
 }

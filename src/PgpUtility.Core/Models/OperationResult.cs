@@ -3,6 +3,7 @@ namespace PgpUtility.Models;
 public record OperationResult
 {
     public bool Success { get; set; }
+    public bool IsCanceled { get; init; }
     public string Message { get; set; } = string.Empty;
     public string? OutputPath { get; set; }
 
@@ -24,4 +25,6 @@ public record OperationResult
 
     public static OperationResult Failed(string message) =>
         new() { Success = false, Message = message };
+
+    public static OperationResult Canceled(string message) => new() { IsCanceled = true, Message = message };
 }

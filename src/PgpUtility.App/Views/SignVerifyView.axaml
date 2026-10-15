@@ -2,7 +2,8 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-             xmlns:vm="using:PgpUtility.App.ViewModels"
+             xmlns:vm="using:PgpUtility.ViewModels"
+             xmlns:format="using:PgpUtility.App.ViewModels"
              xmlns:models="using:PgpUtility.Models"
              mc:Ignorable="d"
              x:Class="PgpUtility.App.Views.SignVerifyView"
@@ -39,7 +40,7 @@
 
       <StackPanel Spacing="4">
         <TextBlock Classes="fieldLabel"
-                   Text="{Binding IsSignMode, Converter={x:Static vm:Converters.SignOrVerifyKeyLabel}}" />
+                   Text="{Binding IsSignMode, Converter={x:Static format:Converters.SignOrVerifyKeyLabel}}" />
         <ComboBox ItemsSource="{Binding AvailableKeys}"
                   SelectedValue="{Binding SelectedKeyId}"
                   SelectedValueBinding="{Binding KeyId, x:DataType=models:PgpKeyInfo}"
@@ -60,14 +61,14 @@
 
       <StackPanel Spacing="4" IsVisible="{Binding IsSignMode}">
         <TextBlock Text="Passphrase" Classes="fieldLabel" />
-        <TextBox x:Name="PassphraseBox" PasswordChar="●" Width="420" HorizontalAlignment="Left" />
+        <TextBox x:Name="PassphraseBox" PasswordChar="●" MaxWidth="420" HorizontalAlignment="Stretch" />
       </StackPanel>
 
       <CheckBox Content="ASCII armor" IsChecked="{Binding AsciiArmor}" IsVisible="{Binding IsSignMode}" />
 
       <StackPanel Orientation="Horizontal" Spacing="8">
         <Button Classes="Primary" Command="{Binding RunCommand}" IsEnabled="{Binding !IsBusy}"
-                Content="{Binding IsSignMode, Converter={x:Static vm:Converters.SignOrVerify}}" />
+                Content="{Binding IsSignMode, Converter={x:Static format:Converters.SignOrVerify}}" />
       </StackPanel>
 
       <!-- Verdict. Deliberately loud: a good signature and a bad one must not be a subtle
@@ -75,8 +76,10 @@
       <Border Classes="panel" Padding="12" IsVisible="{Binding HasResult}">
         <StackPanel Spacing="6" DataContext="{Binding Result}" x:DataType="models:SignatureVerification">
           <TextBlock FontWeight="SemiBold" FontSize="14"
-                     Text="{Binding IsValid, Converter={x:Static vm:Converters.SignatureHeadline}}"
-                     Foreground="{Binding IsValid, Converter={x:Static vm:Converters.SignatureBrush}}" />
+                     Text="{Binding Headline}"
+                     Classes.verdictGood="{Binding IsValid}" Classes.verdictBad="{Binding IsInvalid}" Classes.verdictUnknown="{Binding !Completed}" />
+          <SelectableTextBlock Text="{Binding PrimaryFingerprint, Converter={x:Static format:Converters.SpacedFingerprint}}" FontSize="12" TextWrapping="Wrap" />
+          <TextBlock Classes="hint" Text="Compare the full fingerprint with the signer over a trusted channel. A matching signature does not establish a person's identity." />
           <TextBlock Text="{Binding Message}" TextWrapping="Wrap" FontSize="12" />
           <TextBlock Classes="warning" Text="{Binding Caveat}" IsVisible="{Binding Caveat, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
           <TextBlock Classes="hint" IsVisible="{Binding IsValid}">
@@ -84,7 +87,7 @@
             <Run Text="{Binding SignedAt}" />
           </TextBlock>
           <TextBlock Classes="hint" IsVisible="{Binding IsValid}" TextWrapping="Wrap"
-                     Text="This proves the file has not changed since it was signed by that key. It does not prove the key belongs to who you think: check the fingerprint on the Keys tab for that." />
+                     Text="This proves the file has not changed since it was signed by that key. It does not prove the key belongs to who you think: compare the full fingerprint with the owner. This result describes the bytes read during this check; verify again if the file changes." />
         </StackPanel>
       </Border>
 

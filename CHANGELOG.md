@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.2.0 (unreleased)
+
+- Validate key identities, subkey ownership and lifecycle state before new cryptographic operations.
+- Preserve existing files and use private, unique staging files for all outputs and exports.
+- Freeze active batch settings, honor streaming cancellation and discard stale verification results.
+- Recover damaged key indexes and serialize store updates across app instances.
+- Back up and restore key stores, extend expiry, change passphrases and manage revocation certificates.
+- Confirm deletions against the full fingerprint and distinguish unavailable verification from a mismatch.
+- Wrap controls at narrow widths and hide generated private material until explicitly revealed.
+- Move to .NET 10, strengthen release test gates and prepare artifact provenance.
+
 ## 1.1.0
 
 - **Theme choice.** A System / Light / Dark selector in the status bar. The default follows the

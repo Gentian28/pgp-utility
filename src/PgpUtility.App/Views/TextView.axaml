@@ -2,7 +2,8 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-             xmlns:vm="using:PgpUtility.App.ViewModels"
+             xmlns:vm="using:PgpUtility.ViewModels"
+             xmlns:format="using:PgpUtility.App.ViewModels"
              xmlns:models="using:PgpUtility.Models"
              mc:Ignorable="d"
              x:Class="PgpUtility.App.Views.TextView"
@@ -11,12 +12,12 @@
   <Grid RowDefinitions="Auto,Auto,*,Auto,*" Margin="16" >
 
     <!-- Action -->
-    <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="16" Margin="0,0,0,10">
-      <ComboBox ItemsSource="{Binding Actions}" SelectedItem="{Binding SelectedAction}" MinWidth="130" />
+    <WrapPanel Grid.Row="0" Margin="0,0,0,4">
+      <ComboBox ItemsSource="{Binding Actions}" SelectedItem="{Binding SelectedAction}" MinWidth="130" Margin="0,0,8,6" AutomationProperties.Name="Text action" />
       <ComboBox ItemsSource="{Binding AvailableKeys}"
                 SelectedValue="{Binding SelectedKeyId}"
                 SelectedValueBinding="{Binding KeyId, x:DataType=models:PgpKeyInfo}"
-                MinWidth="300">
+                Width="260" Margin="0,0,8,6" AutomationProperties.Name="Text key">
         <ComboBox.ItemTemplate>
           <DataTemplate x:DataType="models:PgpKeyInfo">
             <TextBlock>
@@ -28,8 +29,8 @@
         </ComboBox.ItemTemplate>
       </ComboBox>
       <TextBox x:Name="PassphraseBox" PasswordChar="●" Width="220"
-               Watermark="Passphrase" IsVisible="{Binding NeedsPassphrase}" />
-    </StackPanel>
+               Margin="0,0,8,6" AutomationProperties.Name="Text passphrase" Watermark="Passphrase" IsVisible="{Binding NeedsPassphrase}" />
+    </WrapPanel>
 
     <!-- Input header -->
     <DockPanel Grid.Row="1" Margin="0,0,0,4">
@@ -57,7 +58,8 @@
       <TextBlock Text="Output" Classes="sectionHeader" VerticalAlignment="Center" />
     </DockPanel>
 
-    <Grid Grid.Row="4" RowDefinitions="*,Auto">
+    <Grid Grid.Row="4" RowDefinitions="*,Auto,Auto">
+      <TextBlock Grid.Row="2" Text="{Binding StatusMessage}" Classes="hint" TextWrapping="Wrap" />
       <TextBox Grid.Row="0" Text="{Binding Output, Mode=OneWay}" IsReadOnly="True"
                AcceptsReturn="True" TextWrapping="Wrap"
                VerticalAlignment="Stretch" VerticalContentAlignment="Top"
@@ -68,8 +70,10 @@
               IsVisible="{Binding HasResult}">
         <StackPanel Spacing="4" DataContext="{Binding Result}" x:DataType="models:SignatureVerification">
           <TextBlock FontWeight="SemiBold"
-                     Text="{Binding IsValid, Converter={x:Static vm:Converters.SignatureHeadline}}"
-                     Foreground="{Binding IsValid, Converter={x:Static vm:Converters.SignatureBrush}}" />
+                     Text="{Binding Headline}"
+                     Classes.verdictGood="{Binding IsValid}" Classes.verdictBad="{Binding IsInvalid}" Classes.verdictUnknown="{Binding !Completed}" />
+          <SelectableTextBlock Text="{Binding PrimaryFingerprint, Converter={x:Static format:Converters.SpacedFingerprint}}" FontSize="12" TextWrapping="Wrap" />
+          <TextBlock Classes="hint" Text="Compare the full fingerprint with the signer over a trusted channel. A matching signature does not establish a person's identity." />
           <TextBlock Text="{Binding Message}" FontSize="12" TextWrapping="Wrap" />
           <TextBlock Classes="warning" Text="{Binding Caveat}"
                      IsVisible="{Binding Caveat, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />

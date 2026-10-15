@@ -2,117 +2,139 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-             xmlns:vm="using:PgpUtility.App.ViewModels"
+             xmlns:vm="using:PgpUtility.ViewModels"
+             xmlns:format="using:PgpUtility.App.ViewModels"
              xmlns:models="using:PgpUtility.Models"
              mc:Ignorable="d"
              x:Class="PgpUtility.App.Views.KeyManagementView"
              x:DataType="vm:KeyManagementViewModel">
 
-  <Grid ColumnDefinitions="*,Auto,320" Margin="16">
-
-    <!-- Key list -->
-    <DockPanel Grid.Column="0">
-      <TextBox DockPanel.Dock="Top" Text="{Binding SearchText}" Margin="0,0,0,8"
-               Watermark="Search by name, key id or fingerprint" />
-
-      <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Spacing="8" Margin="0,8,0,0">
-        <Button Content="Import file..." Command="{Binding ImportKeyCommand}" />
-        <Button Content="Import from clipboard" Command="{Binding ImportFromClipboardCommand}" />
-      </StackPanel>
-
-      <Border Classes="panel">
-        <ListBox ItemsSource="{Binding FilteredKeys}" SelectedItem="{Binding SelectedKey}"
-                 Background="Transparent">
-          <ListBox.ItemTemplate>
-            <DataTemplate x:DataType="models:PgpKeyInfo">
-              <StackPanel Spacing="2" Margin="0,4">
-                <TextBlock Text="{Binding UserId}" FontWeight="SemiBold" />
-                <StackPanel Orientation="Horizontal" Spacing="8">
-                  <TextBlock Text="{Binding KeyId}" Classes="hint"
-                             FontFamily="Cascadia Code,Menlo,DejaVu Sans Mono,Consolas,monospace" />
-                  <TextBlock Classes="hint"
-                             Text="{Binding Algorithm, Converter={x:Static vm:Converters.AlgorithmName}}" />
-                  <TextBlock Text="secret key" Classes="hint"
-                             IsVisible="{Binding HasPrivateKey}" />
-                </StackPanel>
-              </StackPanel>
-            </DataTemplate>
-          </ListBox.ItemTemplate>
-        </ListBox>
+  <ScrollViewer Padding="16">
+    <StackPanel Spacing="12">
+      <WrapPanel IsEnabled="{Binding !IsBusy}">
+        <Button Content="Import file..." Command="{Binding ImportKeyCommand}" Margin="0,0,8,8" />
+        <Button Content="Import from clipboard" Command="{Binding ImportFromClipboardCommand}" Margin="0,0,8,8" />
+        <Button Content="Back up keys..." Command="{Binding BackUpKeysCommand}" Margin="0,0,8,8" />
+        <Button Content="Restore backup..." Command="{Binding RestoreBackupCommand}" Margin="0,0,8,8" />
+      </WrapPanel>
+      <Border Classes="panel" IsVisible="{Binding IsBackupConfirmationVisible}">
+        <StackPanel Spacing="8" IsEnabled="{Binding !IsBusy}">
+          <TextBlock Text="Back up keys and recovery certificates" Classes="sectionHeader" />
+          <TextBlock Classes="warning" Text="This ZIP contains private keys and certificates that can retire your keys. The archive has no additional password protection. Store it offline, protect access, and test a restore before relying on it." />
+          <WrapPanel>
+            <Button Content="Choose backup location..." Command="{Binding ConfirmBackupCommand}" Margin="0,0,8,0" />
+            <Button Content="Cancel" Command="{Binding CancelBackupCommand}" />
+          </WrapPanel>
+        </StackPanel>
       </Border>
-    </DockPanel>
-
-    <Border Grid.Column="1" Width="16" />
-
-    <!-- Detail. IsVisible sits on the outer panel on purpose: a DataContext set on an element
-         also applies to that element's own bindings, so putting both on one panel would look up
-         HasSelection on PgpKeyInfo. -->
-    <ScrollViewer Grid.Column="2" IsVisible="{Binding HasSelection}">
-      <StackPanel Spacing="10" DataContext="{Binding SelectedKey}"
-                  x:DataType="models:PgpKeyInfo">
-
-        <TextBlock Text="{Binding UserId}" Classes="sectionHeader" TextWrapping="Wrap" />
-
-        <StackPanel Spacing="2">
-          <TextBlock Text="Fingerprint" Classes="fieldLabel" />
-          <SelectableTextBlock
-              Text="{Binding Fingerprint, Converter={x:Static vm:Converters.SpacedFingerprint}}"
-              FontFamily="Cascadia Code,Menlo,DejaVu Sans Mono,Consolas,monospace"
-              FontSize="11" TextWrapping="Wrap" />
-          <TextBlock Classes="hint"
-                     Text="Compare this with the owner over a channel you already trust. It is the only thing that proves the key is theirs." />
+      <Border Classes="panel" IsVisible="{Binding IsRestoreConfirmationVisible}">
+        <StackPanel Spacing="8" IsEnabled="{Binding !IsBusy}">
+          <TextBlock Text="Restore a PGP Utility backup" Classes="sectionHeader" />
+          <TextBlock Classes="hint" Text="Restore merges identities and keeps known revocations. Other keys stay in your store. Afterwards, decrypt an older message to check that your private key and passphrase work." />
+          <WrapPanel>
+            <Button Content="Choose backup..." Command="{Binding ConfirmRestoreCommand}" Margin="0,0,8,0" />
+            <Button Content="Cancel" Command="{Binding CancelBackupCommand}" />
+          </WrapPanel>
         </StackPanel>
-
-        <StackPanel Spacing="2">
-          <TextBlock Text="Key id" Classes="fieldLabel" />
-          <SelectableTextBlock Text="{Binding KeyId}" FontSize="12"
-                               FontFamily="Cascadia Code,Menlo,DejaVu Sans Mono,Consolas,monospace" />
+      </Border>
+      <Border Classes="panel" IsVisible="{Binding !Keys.Count}">
+        <StackPanel Spacing="8">
+          <TextBlock Text="Start with a key" Classes="sectionHeader" />
+          <TextBlock Classes="hint" Text="Import a correspondent's public key to encrypt to them. Generate your own key on the Generate tab to receive encrypted messages and sign files. Compare the full fingerprint over a channel you trust before using an imported key." />
+          <WrapPanel IsEnabled="{Binding !IsBusy}">
+            <Button Content="Import a public key..." Command="{Binding ImportKeyCommand}" Margin="0,0,8,8" />
+            <Button Content="Generate my key" Command="{Binding CreateKeyCommand}" Margin="0,0,8,8" />
+          </WrapPanel>
         </StackPanel>
-
-        <StackPanel Spacing="2">
-          <TextBlock Text="Algorithm" Classes="fieldLabel" />
-          <StackPanel Orientation="Horizontal" Spacing="6">
-            <TextBlock FontSize="12"
-                       Text="{Binding Algorithm, Converter={x:Static vm:Converters.AlgorithmName}}" />
-            <TextBlock FontSize="12" Foreground="{DynamicResource MutedTextBrush}"
-                       Text="{Binding KeySize, StringFormat='{}{0} bits'}"
-                       IsVisible="{Binding Algorithm, Converter={x:Static vm:Converters.KeySizeIfMeaningful}}" />
+      </Border>
+      <Grid x:Name="KeyPanes" ColumnDefinitions="*,360" RowDefinitions="Auto,Auto" ColumnSpacing="16" RowSpacing="16" IsEnabled="{Binding !IsBusy}">
+        <StackPanel x:Name="KeyListPane" Spacing="8">
+          <TextBox Text="{Binding SearchText}" Watermark="Search by name, key ID or fingerprint" AutomationProperties.Name="Search keys" />
+          <Border Classes="panel">
+            <ListBox ItemsSource="{Binding FilteredKeys}" SelectedItem="{Binding SelectedKey}" MinHeight="160" MaxHeight="420" Background="Transparent" AutomationProperties.Name="Keys">
+              <ListBox.ItemTemplate>
+                <DataTemplate x:DataType="models:PgpKeyInfo">
+                  <StackPanel Spacing="3" Margin="0,4">
+                    <TextBlock Text="{Binding UserId}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding KeyId}" Classes="hint" />
+                    <TextBlock Text="{Binding StatusText}" Classes="hint" />
+                  </StackPanel>
+                </DataTemplate>
+              </ListBox.ItemTemplate>
+            </ListBox>
+          </Border>
+        </StackPanel>
+        <StackPanel x:Name="KeyDetailPane" Grid.Column="1" Spacing="12" IsVisible="{Binding HasSelection}">
+          <StackPanel Spacing="8" DataContext="{Binding SelectedKey}" x:DataType="models:PgpKeyInfo">
+            <TextBlock Text="{Binding UserId}" Classes="sectionHeader" TextWrapping="Wrap" />
+            <TextBlock Text="{Binding StatusText}" FontWeight="SemiBold" TextWrapping="Wrap" />
+            <TextBlock Text="Fingerprint" Classes="fieldLabel" />
+            <SelectableTextBlock Text="{Binding Fingerprint, Converter={x:Static format:Converters.SpacedFingerprint}}" FontFamily="Cascadia Code,Menlo,DejaVu Sans Mono,Consolas,monospace" FontSize="12" TextWrapping="Wrap" />
+            <TextBlock Classes="hint" Text="Compare this full fingerprint with the owner over a channel you already trust. A valid certificate alone does not establish who owns it." />
+            <TextBlock Text="{Binding Algorithm, Converter={x:Static format:Converters.AlgorithmName}}" />
+            <TextBlock Text="{Binding CreationDate, Converter={x:Static format:Converters.ShortDate}, StringFormat='Created {0}'}" />
+            <TextBlock Text="{Binding ExpirationDate, Converter={x:Static format:Converters.ExpiryText}}" />
           </StackPanel>
+          <WrapPanel>
+            <Button Content="Copy public key" Command="{Binding CopyPublicKeyCommand}" Margin="0,0,8,8" />
+            <Button Content="Copy fingerprint" Command="{Binding CopyFingerprintCommand}" Margin="0,0,8,8" />
+            <Button Content="Export public..." Command="{Binding ExportPublicKeyCommand}" Margin="0,0,8,8" />
+            <Button Content="Export private..." Command="{Binding ExportPrivateKeyCommand}" IsVisible="{Binding SelectedHasPrivateKey}" Margin="0,0,8,8" />
+          </WrapPanel>
+          <Expander Header="Manage this key" HorizontalAlignment="Stretch">
+          <StackPanel Spacing="8">
+          <WrapPanel IsVisible="{Binding SelectedHasPrivateKey}">
+            <Button Content="Extend expiry..." Command="{Binding ManageKeyCommand}" CommandParameter="renew" Margin="0,0,8,8" />
+            <Button Content="Change passphrase..." Command="{Binding ManageKeyCommand}" CommandParameter="password" Margin="0,0,8,8" />
+            <Button Content="Save revocation certificate..." Command="{Binding ManageKeyCommand}" CommandParameter="certificate" Margin="0,0,8,8" />
+          </WrapPanel>
+          <Button Content="Apply revocation certificate..." Command="{Binding ManageKeyCommand}" CommandParameter="revoke" HorizontalAlignment="Left" />
+          <Border Classes="panel" IsVisible="{Binding HasKeyAction}">
+            <StackPanel Spacing="8">
+              <TextBlock Text="{Binding KeyActionLabel}" Classes="sectionHeader" TextWrapping="Wrap" />
+              <SelectableTextBlock Text="{Binding SelectedKey.Fingerprint}" FontSize="12" TextWrapping="Wrap" />
+              <StackPanel IsVisible="{Binding IsRenewing}" Spacing="4">
+                <TextBlock Text="New expiry (end of local day)" Classes="fieldLabel" />
+                <DatePicker SelectedDate="{Binding NewExpiry}" HorizontalAlignment="Left" />
+                <TextBlock Classes="hint" Text="Keep the same fingerprint. Share the updated public key after extending it." />
+              </StackPanel>
+              <StackPanel IsVisible="{Binding NeedsCurrentPassphrase}" Spacing="4">
+                <TextBlock Text="Current passphrase" Classes="fieldLabel" />
+                <TextBox x:Name="CurrentPassphraseBox" PasswordChar="*" AutomationProperties.Name="Current passphrase" />
+              </StackPanel>
+              <StackPanel IsVisible="{Binding IsChangingPassphrase}" Spacing="4">
+                <TextBlock Text="New passphrase" Classes="fieldLabel" />
+                <TextBox x:Name="NewPassphraseBox" PasswordChar="*" AutomationProperties.Name="New passphrase" />
+                <TextBlock Text="Confirm new passphrase" Classes="fieldLabel" />
+                <TextBox x:Name="ConfirmNewPassphraseBox" PasswordChar="*" AutomationProperties.Name="Confirm new passphrase" />
+                <TextBlock Classes="warning" Text="Older backups retain the old passphrase. Make a fresh backup after this change." />
+              </StackPanel>
+              <TextBlock Classes="warning" IsVisible="{Binding IsExportingCertificate}" Text="Anyone holding this certificate can permanently retire the key. Keep it separately from your private key." />
+              <TextBlock Classes="warning" IsVisible="{Binding IsApplyingRevocation}" Text="Applying a certificate permanently retires this fingerprint. It cannot be undone. Old messages remain decryptable with the private key." />
+              <WrapPanel>
+                <Button Content="{Binding KeyActionLabel}" Command="{Binding ApplyKeyActionCommand}" Margin="0,0,8,8" />
+                <Button Content="Cancel" Command="{Binding CancelKeyActionCommand}" />
+              </WrapPanel>
+            </StackPanel>
+          </Border>
+          </StackPanel>
+          </Expander>
+          <Button Content="Delete key..." Classes="Danger" Command="{Binding DeleteKeyCommand}" HorizontalAlignment="Left" />
+          <Border Classes="panel" IsVisible="{Binding IsDeleteConfirmationVisible}">
+            <StackPanel Spacing="8">
+              <TextBlock Text="Delete this key from this device?" Classes="sectionHeader" TextWrapping="Wrap" />
+              <SelectableTextBlock Text="{Binding SelectedKey.Fingerprint}" TextWrapping="Wrap" FontSize="12" />
+              <TextBlock Classes="warning" Text="Deleting the private key can permanently lose access to old messages. Deletion does not revoke copies held by others. Back up first if this is your only copy." />
+              <WrapPanel>
+                <Button Content="Back up first..." Command="{Binding BackUpKeysCommand}" Margin="0,0,8,8" />
+                <Button Content="Delete this fingerprint" Classes="Danger" Command="{Binding ConfirmDeleteKeyCommand}" Margin="0,0,8,8" />
+                <Button Content="Keep key" Command="{Binding CancelDeleteCommand}" />
+              </WrapPanel>
+            </StackPanel>
+          </Border>
         </StackPanel>
-
-        <StackPanel Spacing="2">
-          <TextBlock Text="Created" Classes="fieldLabel" />
-          <TextBlock FontSize="12"
-                     Text="{Binding CreationDate, Converter={x:Static vm:Converters.ShortDate}}" />
-        </StackPanel>
-
-        <StackPanel Spacing="2">
-          <TextBlock Text="Expiry" Classes="fieldLabel" />
-          <TextBlock FontSize="12"
-                     Text="{Binding ExpirationDate, Converter={x:Static vm:Converters.ExpiryText}}" />
-          <TextBlock Classes="warning"
-                     Text="This key has expired. Others will refuse to encrypt to it."
-                     IsVisible="{Binding ExpirationDate, Converter={x:Static vm:Converters.HasExpired}}" />
-        </StackPanel>
-
-      </StackPanel>
-    </ScrollViewer>
-
-    <!-- Actions pinned under the detail pane -->
-    <StackPanel Grid.Column="2" VerticalAlignment="Bottom" Spacing="8"
-                IsVisible="{Binding HasSelection}">
-      <StackPanel Orientation="Horizontal" Spacing="8">
-        <Button Content="Copy public key" Command="{Binding CopyPublicKeyCommand}" />
-        <Button Content="Copy fingerprint" Command="{Binding CopyFingerprintCommand}" />
-      </StackPanel>
-      <StackPanel Orientation="Horizontal" Spacing="8">
-        <Button Content="Export public..." Command="{Binding ExportPublicKeyCommand}" />
-        <Button Content="Export private..." Command="{Binding ExportPrivateKeyCommand}"
-                IsVisible="{Binding SelectedHasPrivateKey}" />
-      </StackPanel>
-      <Button Content="Delete key" Classes="Danger" Command="{Binding DeleteKeyCommand}"
-              HorizontalAlignment="Stretch" />
+      </Grid>
+      <TextBlock Text="{Binding StatusMessage}" Classes="hint" TextWrapping="Wrap" />
     </StackPanel>
-
-  </Grid>
+  </ScrollViewer>
 </UserControl>

@@ -63,6 +63,8 @@ public partial class MainWindow : Window
         var maxWidth = work.Width / scale - chromeWidth;
         var maxHeight = work.Height / scale - chromeHeight;
 
+        MinWidth = Math.Min(MinWidth, maxWidth);
+        MinHeight = Math.Min(MinHeight, maxHeight);
         if (Width > maxWidth)
             Width = Math.Max(MinWidth, maxWidth);
         if (Height > maxHeight)

@@ -1,7 +1,7 @@
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
-using PgpUtility.App.ViewModels;
+using PgpUtility.ViewModels;
 
 namespace PgpUtility.App.Views;
 

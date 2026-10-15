@@ -30,36 +30,6 @@ internal static class PgpKeyRoles
     };
 
     /// <summary>
-    /// The secret key to sign with: the master where it can sign, otherwise the first subkey that
-    /// can.
-    /// </summary>
-    /// <remarks>
-    /// Master first because that is what GnuPG signs with by default and what a verifier will
-    /// look for. Falling through to a subkey covers keys whose master is certify-only, which is a
-    /// common hardened setup.
-    /// </remarks>
-    internal static PgpSecretKey FindSigningKey(PgpSecretKeyRingBundle bundle)
-    {
-        foreach (PgpSecretKeyRing ring in bundle.GetKeyRings())
-        {
-            PgpSecretKey[] keys = ring.GetSecretKeys().Cast<PgpSecretKey>().ToArray();
-
-            PgpSecretKey? master = keys.FirstOrDefault(k => k.IsMasterKey && CanSign(k.PublicKey.Algorithm));
-            if (master != null) return master;
-
-            PgpSecretKey? subkey = keys.FirstOrDefault(k => CanSign(k.PublicKey.Algorithm));
-            if (subkey != null) return subkey;
-        }
-
-        throw new PgpException(
-            "this key cannot sign. It has no signing capability, which usually means only the encryption half was imported.");
-    }
-
-    /// <summary>The user id to record on a signature, so a verifier can show a name.</summary>
-    internal static string? PrimaryUserId(PgpPublicKey key) =>
-        key.GetUserIds().Cast<string>().FirstOrDefault();
-
-    /// <summary>
     /// Unlocks a secret key, translating a bad passphrase into something the user can act on.
     /// </summary>
     /// <remarks>

@@ -21,6 +21,24 @@ public enum PgpKeyAlgorithm
 
 public class KeyGenerationOptions
 {
+    public void Validate()
+    {
+        if (string.IsNullOrWhiteSpace(Name) || Identity.Contains('\r') || Identity.Contains('\n'))
+            throw new ArgumentException("Enter a name on one line.");
+        if (!Enum.IsDefined(Algorithm)) throw new ArgumentException("Choose a supported key algorithm.");
+        if (Algorithm == PgpKeyAlgorithm.Rsa && KeySize is not (2048 or 4096))
+            throw new ArgumentException("Choose RSA 2048 or 4096 bits.");
+        if (ExpirationDate is { } expiry && expiry.ToUniversalTime() <= DateTime.UtcNow.AddSeconds(1))
+            throw new ArgumentException("Choose an expiry date in the future.");
+        if (Passphrase is null || Passphrase.Length == 0)
+            throw new ArgumentException("Enter a passphrase to protect the private key.");
+    }
+
+    internal KeyGenerationOptions Snapshot() => new()
+    {
+        Name = Name, Email = Email, Algorithm = Algorithm, KeySize = KeySize,
+        ExpirationDate = ExpirationDate?.ToUniversalTime(), Passphrase = Passphrase
+    };
     public string Name { get; set; } = string.Empty;
     public string Email { get; set; } = string.Empty;
 

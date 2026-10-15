@@ -5,9 +5,15 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  schedule:
+    - cron: "0 6 * * 1"
+
+permissions:
+  contents: read
 
 jobs:
   build:
+    if: github.event_name != 'schedule'
     name: build & test (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     # The suite takes about a minute. This is a backstop against a hung step burning hours of
@@ -21,12 +27,12 @@ jobs:
         os: [windows-latest, ubuntu-latest, macos-latest]
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
         with:
-          dotnet-version: 8.0.x
+          dotnet-version: 10.0.3xx
 
       # The interoperability tests skip when gpg is missing, so without this the suite would go
       # green having proved nothing about the claim that is hardest to get right. Only Ubuntu
@@ -57,7 +63,7 @@ jobs:
         run: dotnet restore PgpUtility.slnx
 
       - name: Build
-        run: dotnet build PgpUtility.slnx --configuration Release --no-restore
+        run: dotnet build PgpUtility.slnx --configuration Release --no-restore -warnaserror
 
       # PGPUTILITY_REQUIRE_GPG turns a skipped interoperability test into a failure. Set on Linux
       # only, deliberately: gpg-agent is most reliable there, and one platform that is guaranteed
@@ -71,7 +77,7 @@ jobs:
 
       - name: Upload coverage
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           # Must be unique per matrix leg: upload-artifact@v4 rejects duplicate names.
           name: coverage-${{ matrix.os }}
@@ -80,6 +86,7 @@ jobs:
           retention-days: 7
 
   publish:
+    if: github.event_name != 'schedule'
     name: publish ${{ matrix.rid }}
     needs: build
     runs-on: ${{ matrix.os }}
@@ -91,14 +98,15 @@ jobs:
           - { os: windows-latest, rid: win-x64,   exe: PgpUtility.App.exe }
           - { os: ubuntu-latest,  rid: linux-x64, exe: PgpUtility.App }
           - { os: macos-latest,   rid: osx-arm64, exe: PgpUtility.App }
+          - { os: macos-15-intel, rid: osx-x64, exe: PgpUtility.App }
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
         with:
-          dotnet-version: 8.0.x
+          dotnet-version: 10.0.3xx
 
       - name: Publish self-contained single file
         run: dotnet publish src/PgpUtility.App -c Release -r ${{ matrix.rid }} -o out
@@ -117,46 +125,30 @@ jobs:
           fi
           test -f "out/${{ matrix.exe }}" || { echo "::error::${{ matrix.exe }} missing"; exit 1; }
 
-      # Proves the binary is not merely well-formed but actually starts: the runtime boots, the
-      # single-file bundle self-extracts its native libraries, and Avalonia opens a window against
-      # a virtual display. Still running when the timer fires (124) is the pass condition; any
-      # earlier exit means it crashed on startup. A build that compiles and then dies opening its
-      # first view is exactly what this catches.
-      - name: Smoke test - does it launch?
+      - name: Install Linux display dependencies
         if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libice6 libsm6 libx11-6 xvfb
-          chmod +x out/PgpUtility.App
-          set +e
-          xvfb-run -a timeout 20 ./out/PgpUtility.App
-          code=$?
-          set -e
-          if [ "$code" -ne 124 ]; then
-            echo "::error::app exited with $code instead of staying up"
-            exit 1
-          fi
-          echo "app stayed up for the full 20s"
+        run: sudo apt-get update && sudo apt-get install -y libfontconfig1 libice6 libsm6 libx11-6 xvfb
+
+      - name: Smoke test (Linux)
+        if: runner.os == 'Linux'
+        run: xvfb-run -a python3 scripts/smoke-startup.py out/${{ matrix.exe }}
+
+      - name: Smoke test (Windows and macOS)
+        if: runner.os != 'Linux'
+        run: python scripts/smoke-startup.py out/${{ matrix.exe }}
 
   vulnerable-packages:
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
         with:
-          dotnet-version: 8.0.x
+          dotnet-version: 10.0.3xx
 
-      # Fails the job if any package has a known advisory. For a crypto tool a vulnerable
-      # dependency is not a maintenance chore, so this is a gate rather than a report.
       - name: Check for vulnerable packages
-        run: |
-          dotnet restore PgpUtility.slnx
-          dotnet list PgpUtility.slnx package --vulnerable --include-transitive 2>&1 | tee vuln.txt
-          if grep -q "has the following vulnerable packages" vuln.txt; then
-            echo "::error::Vulnerable packages found"
-            exit 1
-          fi
+        shell: pwsh
+        run: ./scripts/check-vulnerabilities.ps1

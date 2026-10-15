@@ -22,6 +22,10 @@ public sealed class SignatureVerification
     public string? SignerKeyId { get; init; }
 
     public string? SignerUserId { get; init; }
+    public string? PrimaryFingerprint { get; init; }
+    public string? SigningFingerprint { get; init; }
+    public bool IsInvalid => Completed && !IsValid;
+    public string Headline => !Completed ? "Unable to check the signature" : IsValid ? "Signature is good" : "Signature does not match";
 
     public DateTime? SignedAt { get; init; }
 
@@ -33,7 +37,8 @@ public sealed class SignatureVerification
     public string? Caveat { get; init; }
 
     public static SignatureVerification Valid(
-        string message, string keyId, string? userId, DateTime signedAt, string? caveat = null) =>
+        string message, string keyId, string? userId, DateTime signedAt, string? caveat = null,
+        string? primaryFingerprint = null, string? signingFingerprint = null) =>
         new()
         {
             Completed = true,
@@ -41,6 +46,8 @@ public sealed class SignatureVerification
             Message = message,
             SignerKeyId = keyId,
             SignerUserId = userId,
+            PrimaryFingerprint = primaryFingerprint,
+            SigningFingerprint = signingFingerprint,
             SignedAt = signedAt,
             Caveat = caveat
         };

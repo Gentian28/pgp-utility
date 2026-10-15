@@ -18,8 +18,54 @@ permissions:
   contents: write   # required to create the release and upload assets
 
 jobs:
+  test:
+    name: verify the exact release commit
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          dotnet-version: 10.0.3xx
+      - name: Require a release version tied to this commit
+        shell: bash
+        env:
+          VERSION_INPUT: ${{ github.event.inputs.version }}
+        run: |
+          ver="${VERSION_INPUT:-${GITHUB_REF_NAME#v}}"
+          if ! [[ "$ver" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::expected version x.y.z"
+            exit 1
+          fi
+          remote=$(git ls-remote --tags origin "refs/tags/v$ver" "refs/tags/v$ver^{}")
+          if [ -n "$remote" ]; then
+            git fetch --no-tags origin "refs/tags/v$ver:refs/tags/v$ver"
+            if [ "$(git rev-list -n 1 "v$ver")" != "$GITHUB_SHA" ]; then
+              echo "::error::the version tag points to a different commit"
+              exit 1
+            fi
+          fi
+      - name: Install GnuPG
+        run: sudo apt-get update && sudo apt-get install -y gnupg
+      - name: Dependency security gate
+        shell: pwsh
+        run: ./scripts/check-vulnerabilities.ps1
+      - name: Build with zero warnings
+        run: dotnet build PgpUtility.slnx --configuration Release -warnaserror
+      - name: Test including mandatory GnuPG comparisons
+        env:
+          PGPUTILITY_REQUIRE_GPG: "1"
+        run: dotnet test PgpUtility.slnx --configuration Release --no-build
+
   package:
     name: package ${{ matrix.rid }}
+    needs: test
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
     runs-on: ${{ matrix.os }}
     timeout-minutes: 40
     strategy:
@@ -33,24 +79,26 @@ jobs:
           - { os: macos-latest,   rid: osx-arm64, channel: osx }
           # Intel Macs. An osx-arm64 build will not run on them at all, because Rosetta translates
           # x64 to arm64 and not the reverse, so without this every pre-2020 Mac is unsupported.
-          - { os: macos-latest,   rid: osx-x64,   channel: osx-x64 }
+          - { os: macos-15-intel, rid: osx-x64,   channel: osx-x64 }
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
         with:
-          dotnet-version: 8.0.x
+          dotnet-version: 10.0.3xx
 
       # The tag is the single source of truth for the version. Strip the leading "v" so 1.0.0
       # reaches both the assembly and the Velopack package id.
       - name: Resolve version
         id: v
+        env:
+          VERSION_INPUT: ${{ github.event.inputs.version }}
         shell: bash
         run: |
-          if [ -n "${{ github.event.inputs.version }}" ]; then
-            ver="${{ github.event.inputs.version }}"
+          if [ -n "${VERSION_INPUT}" ]; then
+            ver="$VERSION_INPUT"
           else
             ver="${GITHUB_REF_NAME#v}"
           fi
@@ -74,20 +122,14 @@ jobs:
           fi
           echo "changelog entry for $ver found"
 
-      # The release must not ship code the test suite has not seen. CI covers pushes to main, but
-      # a tag can point anywhere, so this leg proves the exact commit being packaged.
-      - name: Install GnuPG (Linux gate)
-        if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y gnupg
-
-      - name: Test
-        if: runner.os == 'Linux'
-        env:
-          PGPUTILITY_REQUIRE_GPG: "1"
-        run: dotnet test PgpUtility.slnx --configuration Release
-
-      - name: Install Velopack CLI
-        run: dotnet tool install -g vpk
+      - name: Install the matching Velopack CLI
+        shell: pwsh
+        run: |
+          [xml]$packages = Get-Content Directory.Packages.props
+          $version = ($packages.Project.ItemGroup.PackageVersion | Where-Object Include -eq 'Velopack').Version
+          if (-not $version) { throw 'No central Velopack version found.' }
+          dotnet tool install -g vpk --version $version
+          if ($LASTEXITCODE -ne 0) { throw 'Velopack tool installation failed.' }
 
       # PublishSingleFile is explicitly OFF here. Velopack's delta updates diff package contents,
       # and a compressed single-file blob defeats that entirely: every update would be a full
@@ -99,6 +141,22 @@ jobs:
           -p:PublishSingleFile=false
           -p:Version=${{ steps.v.outputs.version }}
           -o publish/${{ matrix.rid }}
+
+      - name: Install Linux display dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libfontconfig1 libice6 libsm6 libx11-6 xvfb
+
+      - name: Smoke test release drop (Linux)
+        if: runner.os == 'Linux'
+        run: xvfb-run -a python3 scripts/smoke-startup.py publish/${{ matrix.rid }}/PgpUtility.App
+
+      - name: Smoke test release drop (Windows and macOS)
+        if: runner.os != 'Linux'
+        shell: bash
+        run: |
+          exe=PgpUtility.App
+          if [ "${{ runner.os }}" = "Windows" ]; then exe=PgpUtility.App.exe; fi
+          python scripts/smoke-startup.py "publish/${{ matrix.rid }}/$exe"
 
       - name: Package installer
         shell: bash
@@ -139,13 +197,17 @@ jobs:
         shell: bash
         run: |
           cd artifacts
-          # Nothing here is code-signed, so a checksum is the only thing a careful user can verify
-          # a download against.
+          # Checksums detect corrupt downloads; the following attestation binds them to this build.
           sha256sum * > "SHA256SUMS-${{ matrix.channel }}.txt" 2>/dev/null \
             || shasum -a 256 * > "SHA256SUMS-${{ matrix.channel }}.txt"
           cat "SHA256SUMS-${{ matrix.channel }}.txt"
 
-      - uses: actions/upload-artifact@v4
+      - name: Attest release artifacts
+        uses: actions/attest-build-provenance@43d14bc2b83dec42d39ecae14e916627a18bb661 # v3
+        with:
+          subject-path: artifacts/*
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: release-${{ matrix.rid }}
           path: artifacts/**
@@ -160,9 +222,9 @@ jobs:
     steps:
       # Must come first. actions/checkout cleans the workspace, so running it after the artifacts
       # are downloaded and flattened would delete them.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           path: dist
 
@@ -176,10 +238,12 @@ jobs:
       # workflow_dispatch is refs/heads/main, so the release would be tagged "main".
       - name: Resolve tag
         id: v
+        env:
+          VERSION_INPUT: ${{ github.event.inputs.version }}
         shell: bash
         run: |
-          if [ -n "${{ github.event.inputs.version }}" ]; then
-            ver="${{ github.event.inputs.version }}"
+          if [ -n "${VERSION_INPUT}" ]; then
+            ver="$VERSION_INPUT"
           else
             ver="${GITHUB_REF_NAME#v}"
           fi
@@ -205,10 +269,11 @@ jobs:
           cat NOTES.md
 
       - name: Create release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           files: out/**
           tag_name: ${{ steps.v.outputs.tag }}
+          target_commitish: ${{ github.sha }}
           draft: true          # reviewed before it goes public
           body_path: NOTES.md
           fail_on_unmatched_files: true

@@ -1,10 +1,9 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using PgpUtility.App.Services;
 using PgpUtility.Models;
 using PgpUtility.Services;
 
-namespace PgpUtility.App.ViewModels;
+namespace PgpUtility.ViewModels;
 
 /// <summary>
 /// One entry in the algorithm dropdown. Wraps the enum so the list can carry a label without the
@@ -90,6 +89,7 @@ public partial class KeyGenerationViewModel : ViewModelBase
         _filePicker = filePicker;
         _clipboard = clipboard;
         _addLog = addLog;
+        ReportFailure = addLog;
     }
 
     partial void OnPassphraseChanging(char[]? oldValue, char[] newValue) => ZeroIfReplaced(oldValue, newValue);
@@ -121,7 +121,7 @@ public partial class KeyGenerationViewModel : ViewModelBase
                 Passphrase = Passphrase,
                 Algorithm = SelectedAlgorithm,
                 KeySize = SelectedKeySize,
-                ExpirationDate = HasExpiration ? ExpirationDate.UtcDateTime : null
+                ExpirationDate = HasExpiration ? ExpirationDate.Date.AddDays(1).AddTicks(-1).ToUniversalTime() : null
             };
 
             GeneratedKeyPair generated = await _pgpService.GenerateKeyPairAsync(options, progress);
@@ -154,31 +154,31 @@ public partial class KeyGenerationViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    private async Task CopyPublicKeyAsync()
+    private Task CopyPublicKeyAsync() => GuardAsync(async () =>
     {
         if (string.IsNullOrEmpty(GeneratedPublicKey)) return;
         await _clipboard.SetTextAsync(GeneratedPublicKey);
         StatusMessage = "Public key copied to the clipboard.";
-    }
+    });
 
     [RelayCommand]
-    private async Task CopyPrivateKeyAsync()
+    private Task CopyPrivateKeyAsync() => GuardAsync(async () =>
     {
         if (string.IsNullOrEmpty(GeneratedPrivateKey)) return;
         await _clipboard.SetTextAsync(GeneratedPrivateKey);
         StatusMessage = "Private key copied to the clipboard. Paste it somewhere safe, then clear the clipboard.";
-    }
+    });
 
     [RelayCommand]
-    private async Task CopyRevocationCertificateAsync()
+    private Task CopyRevocationCertificateAsync() => GuardAsync(async () =>
     {
         if (string.IsNullOrEmpty(GeneratedRevocationCertificate)) return;
         await _clipboard.SetTextAsync(GeneratedRevocationCertificate);
         StatusMessage = "Revocation certificate copied to the clipboard.";
-    }
+    });
 
     [RelayCommand]
-    private async Task SaveKeysAsync()
+    private Task SaveKeysAsync() => GuardAsync(async () =>
     {
         if (!KeysGenerated) return;
 
@@ -187,22 +187,8 @@ public partial class KeyGenerationViewModel : ViewModelBase
 
         try
         {
-            string identity = new KeyGenerationOptions { Name = Name, Email = Email }.Identity;
-            string safeName = string.Join("_", identity.Split(Path.GetInvalidFileNameChars()));
-
-            string publicPath = Path.Combine(folder, $"{safeName}_public.asc");
-            string privatePath = Path.Combine(folder, $"{safeName}_private.asc");
-            string revocationPath = Path.Combine(folder, $"{safeName}_revocation.asc");
-
-            await File.WriteAllTextAsync(publicPath, GeneratedPublicKey);
-            await File.WriteAllTextAsync(privatePath, GeneratedPrivateKey);
-            await File.WriteAllTextAsync(revocationPath, GeneratedRevocationCertificate);
-
-            // Both of these are landing in a folder the user chose, which on Unix is very likely
-            // to be group and world readable by default. The revocation certificate is not secret
-            // in the way the private key is, but anyone holding it can retire the key.
-            KeyStoreLocation.RestrictFile(privatePath);
-            KeyStoreLocation.RestrictFile(revocationPath);
+            var pair = new GeneratedKeyPair(GeneratedPublicKey, GeneratedPrivateKey, GeneratedRevocationCertificate);
+            await KeyPairExportService.SaveAsync(folder, pair);
 
             StatusMessage = "Keys and revocation certificate saved to disk.";
             _addLog(StatusMessage);
@@ -212,7 +198,7 @@ public partial class KeyGenerationViewModel : ViewModelBase
             StatusMessage = $"Save failed: {ex.Message}";
             _addLog(StatusMessage);
         }
-    }
+    });
 
     [RelayCommand]
     private async Task ImportToStoreAsync()
@@ -222,8 +208,8 @@ public partial class KeyGenerationViewModel : ViewModelBase
         IsBusy = true;
         try
         {
-            await _keyStoreService.ImportKeyFromStringAsync(GeneratedPublicKey, false);
-            await _keyStoreService.ImportKeyFromStringAsync(GeneratedPrivateKey, true);
+            var imported = await _keyStoreService.ImportKeyFromStringAsync(GeneratedPrivateKey, true);
+            await _keyStoreService.SaveRevocationCertificateAsync(imported.Fingerprint, GeneratedRevocationCertificate);
             StatusMessage = "Keys imported into the key store.";
             _addLog(StatusMessage);
         }

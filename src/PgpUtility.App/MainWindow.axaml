@@ -10,7 +10,7 @@
         Icon="/Assets/icon.ico"
         Title="PGP Utility"
         Width="960" Height="720"
-        MinWidth="720" MinHeight="520"
+        MinWidth="480" MinHeight="400"
         WindowStartupLocation="CenterScreen">
 
   <!-- No Design.DataContext: MainViewModel takes its services through the constructor and a
@@ -21,6 +21,8 @@
     <!-- Status bar -->
     <Border DockPanel.Dock="Bottom" Classes="panel" CornerRadius="0"
             BorderThickness="0,1,0,0" Padding="12,6">
+      <StackPanel Spacing="3">
+      <TextBlock Text="{Binding VersionLabel}" Classes="hint" FontSize="10" />
       <DockPanel>
         <ToggleButton DockPanel.Dock="Right" Content="Log"
                       IsChecked="{Binding IsLogPanelVisible}"
@@ -37,6 +39,7 @@
                    TextTrimming="CharacterEllipsis"
                    Foreground="{DynamicResource MutedTextBrush}" FontSize="12" />
       </DockPanel>
+      </StackPanel>
     </Border>
 
     <!-- Log panel -->

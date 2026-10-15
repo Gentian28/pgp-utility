@@ -1,11 +1,10 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using PgpUtility.App.Services;
 using PgpUtility.Models;
 using PgpUtility.Services;
 
-namespace PgpUtility.App.ViewModels;
+namespace PgpUtility.ViewModels;
 
 /// <summary>
 /// Text in, text out.
@@ -22,6 +21,7 @@ public partial class TextViewModel : ViewModelBase
     private readonly IKeyStoreService _keyStoreService;
     private readonly IClipboardService _clipboard;
     private readonly Action<string> _addLog;
+    private readonly OperationRevision _revision = new();
 
     public event EventHandler? PassphraseCleared;
 
@@ -76,6 +76,7 @@ public partial class TextViewModel : ViewModelBase
         _keyStoreService = keyStoreService;
         _clipboard = clipboard;
         _addLog = addLog;
+        ReportFailure = addLog;
         RefreshKeys();
     }
 
@@ -83,12 +84,20 @@ public partial class TextViewModel : ViewModelBase
 
     partial void OnSelectedActionChanged(TextAction value)
     {
-        Result = null;
+        Invalidate();
+        ClearPassphrase();
         RefreshKeys();
     }
 
+    partial void OnInputChanged(string value) => Invalidate();
+    partial void OnSelectedKeyIdChanged(string? value) => Invalidate();
+    private void Invalidate() { _revision.Next(); Result = null; Output = string.Empty; StatusMessage = string.Empty; }
+    private void ClearPassphrase() { Passphrase = []; PassphraseCleared?.Invoke(this, EventArgs.Empty); }
+
     public void RefreshKeys()
     {
+        if (IsBusy) return;
+        string? selected = SelectedKeyId;
         AvailableKeys.Clear();
 
         // Decrypt and sign need a secret key. Encrypt and verify work with anyone's public one.
@@ -96,9 +105,12 @@ public partial class TextViewModel : ViewModelBase
 
         foreach (var key in _keyStoreService.GetAllKeys())
         {
-            if (!secretRequired || key.HasPrivateKey)
+            if ((!secretRequired || key.HasPrivateKey) &&
+                (SelectedAction != TextAction.Encrypt || key.CanEncrypt) &&
+                (SelectedAction != TextAction.Sign || key.CanSign))
                 AvailableKeys.Add(key);
         }
+        SelectedKeyId = AvailableKeys.Any(k => k.KeyId == selected) ? selected : null;
     }
 
     private bool CanRun() =>
@@ -108,51 +120,58 @@ public partial class TextViewModel : ViewModelBase
     private async Task RunAsync()
     {
         IsBusy = true;
-        Result = null;
+        Invalidate();
+        int revision = _revision.Next();
+        TextAction action = SelectedAction;
+        string input = Input;
+        bool needsSecret = NeedsPassphrase;
+        char[] passphrase = (char[])Passphrase.Clone();
 
         try
         {
-            string? keyPath = _keyStoreService.GetKeyFilePath(SelectedKeyId!, privateKey: NeedsPassphrase);
+            string? keyPath = _keyStoreService.GetKeyFilePath(SelectedKeyId!, privateKey: needsSecret);
             if (keyPath == null)
             {
                 StatusMessage = "That key is not in the store any more.";
                 return;
             }
 
-            switch (SelectedAction)
+            OperationResult? operation = null;
+            SignatureVerification? verification = null;
+            switch (action)
             {
                 case TextAction.Encrypt:
-                    await ShowAsync(await _pgpService.EncryptTextAsync(Input, keyPath, isFilePath: true));
+                    operation = await _pgpService.EncryptTextAsync(input, keyPath, isFilePath: true);
                     break;
 
                 case TextAction.Decrypt:
-                    await ShowAsync(await _pgpService.DecryptTextAsync(Input, keyPath, isFilePath: true, Passphrase));
+                    operation = await _pgpService.DecryptTextAsync(input, keyPath, isFilePath: true, passphrase);
                     break;
 
                 case TextAction.Sign:
-                    await ShowAsync(await _signatures.SignTextAsync(Input, keyPath, isFilePath: true, Passphrase));
+                    operation = await _signatures.SignTextAsync(input, keyPath, isFilePath: true, passphrase);
                     break;
 
                 case TextAction.Verify:
-                    Result = await _signatures.VerifyTextAsync(Input, keyPath, isFilePath: true);
-                    StatusMessage = Result.Message;
-                    _addLog(Result.Message);
+                    verification = await _signatures.VerifyTextAsync(input, keyPath, isFilePath: true);
                     break;
             }
+            if (!_revision.IsCurrent(revision)) return;
+            if (operation is not null) await ShowAsync(operation);
+            if (verification is not null) { Result = verification; StatusMessage = verification.Message; _addLog(verification.Message); }
         }
         catch (Exception ex)
         {
+            if (!_revision.IsCurrent(revision)) return;
             StatusMessage = $"Error: {ex.Message}";
             _addLog(StatusMessage);
         }
         finally
         {
-            if (NeedsPassphrase)
-            {
-                Passphrase = Array.Empty<char>();
-                PassphraseCleared?.Invoke(this, EventArgs.Empty);
-            }
+            Array.Clear(passphrase);
+            if (needsSecret) ClearPassphrase();
             IsBusy = false;
+            RefreshKeys();
         }
     }
 
@@ -168,7 +187,7 @@ public partial class TextViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    private async Task PasteAsync()
+    private Task PasteAsync() => GuardAsync(async () =>
     {
         string? text = await _clipboard.GetTextAsync();
         if (string.IsNullOrEmpty(text))
@@ -185,19 +204,21 @@ public partial class TextViewModel : ViewModelBase
             SelectedAction = TextAction.Verify;
         else if (text.Contains("BEGIN PGP MESSAGE", StringComparison.Ordinal))
             SelectedAction = TextAction.Decrypt;
-    }
+    });
 
     [RelayCommand]
-    private async Task CopyOutputAsync()
+    private Task CopyOutputAsync() => GuardAsync(async () =>
     {
         if (string.IsNullOrEmpty(Output)) return;
         await _clipboard.SetTextAsync(Output);
         StatusMessage = "Copied to the clipboard.";
-    }
+    });
 
     [RelayCommand]
     private void Clear()
     {
+        Invalidate();
+        ClearPassphrase();
         Input = string.Empty;
         Output = string.Empty;
         Result = null;
