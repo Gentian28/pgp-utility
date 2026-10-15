@@ -31,6 +31,8 @@ check with an end-to-end installer or UI test.
 The candidate startup check requires a `PGPUTILITY_STARTUP_READY_FILE` signal from the main window's
 Opened event; a live but deadlocked process fails. Only the published 1.1.0 baseline, which predates
 that signal, uses an explicitly labeled legacy process-liveness check during upgrade acceptance.
+Candidate readiness has a sixty-second cold-start deadline and a ten-second liveness floor;
+failure output includes startup diagnostics. A process that never opens its window still fails.
 
 Run the `Native package acceptance` workflow on the same candidate. It uses fresh hosted runners
 and synthetic fixtures to exercise the published 1.1.0 installer or AppImage, upgrade with the

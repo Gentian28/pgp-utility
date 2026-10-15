@@ -7,6 +7,7 @@ import subprocess
 import signal
 import sys
 import tempfile
+import time
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("executable")
@@ -35,9 +36,20 @@ with workspace as store, tempfile.TemporaryDirectory(prefix="pgputility-readines
         # AppImage extract-and-run can keep a child alive after its launcher exits.
         options = {"start_new_session": True}
     process = subprocess.Popen([str(executable)], env=environment, stdout=subprocess.PIPE, stderr=subprocess.PIPE, **options)
-    try:
-        stdout, stderr = process.communicate(timeout=10)
-    except subprocess.TimeoutExpired:
+    started = time.monotonic()
+    exited_early = False
+    while True:
+        try:
+            stdout, stderr = process.communicate(timeout=1)
+            exited_early = True
+            break
+        except subprocess.TimeoutExpired:
+            elapsed = time.monotonic() - started
+            # Cold native desktop initialization can outlast ten seconds on hosted runners.
+            # Require readiness within a bounded minute and retain the ten-second liveness floor.
+            if elapsed >= 60 or (elapsed >= 10 and (arguments.legacy_process_only or ready.is_file())):
+                break
+    if not exited_early:
         if os.name == "nt":
             process.kill()
         else:
@@ -45,12 +57,15 @@ with workspace as store, tempfile.TemporaryDirectory(prefix="pgputility-readines
                 os.killpg(process.pid, signal.SIGKILL)
             except ProcessLookupError:
                 pass
-        process.communicate(timeout=10)
+        stdout, stderr = process.communicate(timeout=10)
         if not arguments.legacy_process_only and (not ready.is_file() or ready.read_text() != "ready"):
+            print(stdout.decode("utf-8", errors="replace"))
+            print(stderr.decode("utf-8", errors="replace"), file=sys.stderr)
             raise SystemExit("The process stayed alive but its main window did not report that it opened.")
         if arguments.corrupt_index and not list(Path(store).glob("index.corrupt.*.json")):
             raise SystemExit("The corrupt index was not preserved during startup recovery.")
-        print("Legacy process-liveness check passed." if arguments.legacy_process_only else "The main window opened and stayed alive with an isolated key store.")
+        print("Legacy process-liveness check passed." if arguments.legacy_process_only else
+              f"The main window opened and stayed alive with an isolated key store ({elapsed:.1f}s check).")
     else:
         print(stdout.decode("utf-8", errors="replace"))
         print(stderr.decode("utf-8", errors="replace"), file=sys.stderr)

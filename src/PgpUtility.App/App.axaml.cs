@@ -21,6 +21,7 @@ public partial class App : Application
             // Avalonia's reflection-based validation would report the same errors twice.
             DisableDuplicateValidation();
 
+            System.Diagnostics.Trace.WriteLine("Startup check: creating the main window.");
             var window = new MainWindow();
 
             // The pickers and the clipboard both hang off the window, which does not exist when
@@ -30,6 +31,7 @@ public partial class App : Application
 
             var pgpService = new PgpService();
             var keyStore = new KeyStoreService(pgpService);
+            System.Diagnostics.Trace.WriteLine("Startup check: key store initialized.");
 
             window.DataContext = new MainViewModel(
                 pgpService,
@@ -46,12 +48,14 @@ public partial class App : Application
             {
                 window.Opened += async (_, _) =>
                 {
+                    System.Diagnostics.Trace.WriteLine("Startup check: main window opened.");
                     try { await FileTransaction.WriteTextAsync(readyFile, "ready"); }
                     catch (Exception exception) { System.Diagnostics.Trace.TraceError("Startup readiness signal failed: {0}", exception.Message); }
                 };
             }
 
             desktop.MainWindow = window;
+            System.Diagnostics.Trace.WriteLine("Startup check: main window assigned.");
         }
 
         base.OnFrameworkInitializationCompleted();
