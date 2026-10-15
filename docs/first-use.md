@@ -46,6 +46,8 @@ Before treating the backup as reliable, close the app and launch a separate sess
 `PGPUTILITY_KEY_STORE` pointing to a new, empty folder. Restore the ZIP there and decrypt a test
 message encrypted to your original key. Check the full fingerprint. Close that test session and
 remove the override to return to your original store. Do not delete the original store as a test.
+Reimport or restore into an existing store retains its current private-key protection. Use the empty
+store rehearsal above when you need to recover with a backup that has an older passphrase.
 The app never needs your real key material in a bug report.
 
 ## Manage an existing key

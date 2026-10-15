@@ -74,9 +74,11 @@ public partial class EncryptDecryptViewModel : ViewModelBase
     public void RefreshKeys()
     {
         if (IsBusy) return;
+        var keys = ReadKeys(_keyStoreService);
+        if (keys is null) return;
         string? selected = SelectedKeyId;
         AvailableKeys.Clear();
-        foreach (var key in _keyStoreService.GetAllKeys())
+        foreach (var key in keys)
             if (IsEncryptMode ? key.CanEncrypt : key.HasPrivateKey) AvailableKeys.Add(key);
         SelectedKeyId = AvailableKeys.Any(k => k.KeyId == selected) ? selected : null;
     }

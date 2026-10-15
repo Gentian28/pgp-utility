@@ -21,6 +21,11 @@ workflow belongs in this interface.
 These are design and engineering responses, not proof of market demand. Adoption, task-completion
 rates and willingness to recommend have not been measured in this review.
 
+The regression suite also runs five simulated user journeys: first exchange, file batches,
+signature interpretation, backup recovery and key retirement. They exercise commands with real
+cryptographic services and synthetic data. They establish functional behavior, not observations of
+people, installation usability, task duration or demand. Keep those results separate from the study.
+
 ## Small usability study protocol
 
 Recruit five people who have an occasional encryption need and mixed OpenPGP experience. Recruitment

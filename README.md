@@ -101,6 +101,9 @@ chmod +x PgpUtility.AppImage
 ./PgpUtility.AppImage
 ```
 
+Minimal Linux systems also need Fontconfig and the X11 session libraries. On Debian or Ubuntu,
+install `libfontconfig1 libice6 libsm6 libx11-6` through your system package manager before launching.
+
 ### Verifying a download
 
 Each release includes `SHA256SUMS-<platform>.txt`. Compare the hash of the exact file you downloaded:

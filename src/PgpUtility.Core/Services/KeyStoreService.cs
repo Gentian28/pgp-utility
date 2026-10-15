@@ -10,6 +10,8 @@ namespace PgpUtility.Services;
 
 public class KeyStoreService : IKeyStoreService
 {
+    private const int MaxBackupEntries = 4096;
+    private const long MaxBackupBytes = 64 * 1024 * 1024;
     private readonly IPgpService _pgpService;
     private readonly KeyLifecycleService _lifecycle = new();
     private readonly string _keysDirectory;
@@ -138,13 +140,14 @@ public class KeyStoreService : IKeyStoreService
                 var key = Find(keyId) ?? throw new InvalidOperationException("The selected key is no longer in the store.");
                 string name = "rev_" + key.Fingerprint + ".asc";
                 string certificate;
-                if (File.Exists(StorePath(name))) certificate = File.ReadAllText(StorePath(name));
+                if (File.Exists(StorePath(name))) certificate = Encoding.UTF8.GetString(ReadKeyBytes(StorePath(name)));
                 else
                 {
                     if (key.PrivateKeyFile is null) throw new InvalidOperationException("Generating a certificate needs the private key and its passphrase.");
                     certificate = _pgpService.CreateRevocationCertificate(StorePath(key.PrivateKeyFile), true, owned);
                     Write(name, certificate);
                 }
+                _ = _lifecycle.ApplyRevocation(File.ReadAllText(StorePath(key.PublicKeyFile)), certificate);
                 FileTransaction.WriteTextAsync(outputPath, certificate).GetAwaiter().GetResult();
                 return true;
             }));
@@ -192,7 +195,7 @@ public class KeyStoreService : IKeyStoreService
                 var key = Find(keyId) ?? throw new InvalidOperationException("The selected key is no longer in the store.");
                 if (key.PrivateKeyFile is null) throw new InvalidOperationException("No private key is available.");
                 string changed = _lifecycle.ChangePassphraseAsync(File.ReadAllText(StorePath(key.PrivateKeyFile)), oldOwned, newOwned).GetAwaiter().GetResult();
-                Import(Encoding.UTF8.GetBytes(changed), true);
+                Import(Encoding.UTF8.GetBytes(changed), true, replacePrivate: true);
                 return true;
             }));
         }
@@ -203,12 +206,18 @@ public class KeyStoreService : IKeyStoreService
     {
         Reload();
         if (_keys.Count == 0) throw new InvalidOperationException("There are no keys to back up.");
+        string manifestText = JsonSerializer.Serialize(new BackupManifest(1, DateTime.UtcNow, _keys.Select(k => k.Fingerprint).ToArray()), JsonOptions);
+        var sourceFiles = _keys.SelectMany(key => new[] { key.PublicKeyFile, key.PrivateKeyFile, "rev_" + key.Fingerprint + ".asc" })
+            .OfType<string>().Select(StorePath).Where(File.Exists).Select(path => new FileInfo(path)).ToArray();
+        if (sourceFiles.Length + 1 > MaxBackupEntries || sourceFiles.Any(file => file.Length > CryptoInputLimits.TextBytes) ||
+            sourceFiles.Sum(file => file.Length) + Encoding.UTF8.GetByteCount(manifestText) > MaxBackupBytes)
+            throw new InvalidDataException("This store exceeds the supported backup limits. Export individual keys into separate safe files.");
         using var transaction = new FileTransaction(outputPath);
         using (var archive = new ZipArchive(transaction.Stream, ZipArchiveMode.Create, leaveOpen: true))
         {
             var manifest = archive.CreateEntry("manifest.json");
             using (var writer = new StreamWriter(manifest.Open(), new UTF8Encoding(false)))
-                writer.Write(JsonSerializer.Serialize(new BackupManifest(1, DateTime.UtcNow, _keys.Select(k => k.Fingerprint).ToArray()), JsonOptions));
+                writer.Write(manifestText);
             foreach (var key in _keys)
             {
                 foreach (string name in new[] { key.PublicKeyFile, key.PrivateKeyFile, "rev_" + key.Fingerprint + ".asc" }.OfType<string>())
@@ -216,6 +225,8 @@ public class KeyStoreService : IKeyStoreService
                     string sourcePath = StorePath(name);
                     if (!File.Exists(sourcePath)) continue;
                     string prefix = name.StartsWith("sec_", StringComparison.Ordinal) ? "sec_" : name.StartsWith("rev_", StringComparison.Ordinal) ? "rev_" : "pub_";
+                    if (prefix == "rev_")
+                        _ = _lifecycle.ApplyRevocation(File.ReadAllText(StorePath(key.PublicKeyFile)), Encoding.UTF8.GetString(ReadKeyBytes(sourcePath)));
                     using var target = archive.CreateEntry(prefix + key.Fingerprint + ".asc").Open();
                     using var source = File.OpenRead(sourcePath);
                     source.CopyTo(target);
@@ -228,10 +239,10 @@ public class KeyStoreService : IKeyStoreService
 
     public Task<int> RestoreBackupAsync(string inputPath) => Task.Run(() => WithLock(() =>
     {
-        const int maxEntrySize = 16 * 1024 * 1024;
-        const long maxBackupSize = 64 * 1024 * 1024;
+        const int maxEntrySize = CryptoInputLimits.TextBytes;
+        const long maxBackupSize = MaxBackupBytes;
         using var archive = ZipFile.OpenRead(inputPath);
-        if (archive.Entries.Count > 4096 || archive.Entries.Sum(e => e.Length) > maxBackupSize)
+        if (archive.Entries.Count > MaxBackupEntries || archive.Entries.Sum(e => e.Length) > maxBackupSize)
             throw new InvalidDataException("This backup is too large to restore safely.");
         var entries = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase);
         long total = 0;
@@ -337,7 +348,7 @@ public class KeyStoreService : IKeyStoreService
 
     private sealed record BackupManifest(int Format, DateTime CreatedUtc, string[] Fingerprints);
 
-    private PgpKeyInfo Import(byte[] bytes, bool isPrivate)
+    private PgpKeyInfo Import(byte[] bytes, bool isPrivate, bool replacePrivate = false)
     {
         using var source = new MemoryStream(bytes);
         PgpSecretKeyRing? secret = isPrivate ? PgpKeyValidation.ReadSecret(source) : null;
@@ -356,7 +367,7 @@ public class KeyStoreService : IKeyStoreService
                 if (secret is null) secret = oldSecret;
                 else foreach (var oldKey in oldSecret.GetSecretKeys())
                     if (secret.GetSecretKey(oldKey.GetFingerprint()) is not { } incoming ||
-                        (incoming.IsPrivateKeyEmpty && !oldKey.IsPrivateKeyEmpty))
+                        (!oldKey.IsPrivateKeyEmpty && (!replacePrivate || incoming.IsPrivateKeyEmpty)))
                         secret = PgpSecretKeyRing.InsertSecretKey(secret, oldKey);
             }
         }

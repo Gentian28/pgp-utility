@@ -94,6 +94,37 @@ public class KeyPolicyTests
         verified.IsValid.Should().BeTrue(verified.Message);
     }
 
+    [Fact]
+    public async Task Renewal_retains_an_independently_verified_unhashed_signing_cross_certificate()
+    {
+        var pair = CreateSigningRing(crossCertify: true);
+        using var input = new MemoryStream(Encoding.UTF8.GetBytes(pair.PrivateKey));
+        var secret = new PgpSecretKeyRing(PgpUtilities.GetDecoderStream(input));
+        var primary = secret.GetPublicKey();
+        var subkey = secret.GetPublicKeys().First(k => !k.IsMasterKey);
+        var previous = subkey.GetSignaturesOfType(PgpSignature.SubkeyBinding).Single();
+        var embedded = previous.GetHashedSubPackets().ToArray().Where(p => p.SubpacketType == SignatureSubpacketTag.EmbeddedSignature).ToArray();
+        embedded.Should().NotBeEmpty();
+        var generator = new PgpSignatureGenerator(primary.Algorithm, HashAlgorithmTag.Sha256);
+        generator.InitSign(PgpSignature.SubkeyBinding, secret.GetSecretKey().ExtractPrivateKeyUtf8(Passphrase()));
+        generator.SetHashedSubpackets(PgpSignatureSubpacketVector.FromSubpackets(previous.GetHashedSubPackets().ToArray().Except(embedded).ToArray()));
+        generator.SetUnhashedSubpackets(PgpSignatureSubpacketVector.FromSubpackets(embedded));
+        subkey = PgpPublicKey.RemoveCertification(subkey, previous);
+        subkey = PgpPublicKey.AddCertification(subkey, generator.GenerateCertification(primary, subkey));
+        secret = PgpSecretKeyRing.InsertSecretKey(secret, PgpSecretKey.ReplacePublicKey(secret.GetSecretKey(subkey.KeyId), subkey));
+        using var output = new MemoryStream();
+        using (var armor = new ArmoredOutputStream(output)) secret.Encode(armor);
+        string privateKey = Encoding.UTF8.GetString(output.ToArray());
+        var service = new PgpSignatureService();
+        var before = await service.SignTextAsync("before renewal", privateKey, false, Passphrase());
+        before.Success.Should().BeTrue(before.Message);
+        string renewed = await new KeyLifecycleService().ExtendExpiryAsync(privateKey, Passphrase(), DateTime.UtcNow.AddYears(2));
+        var after = await service.SignTextAsync("after renewal", renewed, false, Passphrase());
+        after.Success.Should().BeTrue(after.Message);
+        var checkedSignature = await service.VerifyTextAsync(after.Payload!, new PgpService().ExtractPublicKeyFromPrivateKey(renewed, false), false);
+        checkedSignature.IsValid.Should().BeTrue(checkedSignature.Message);
+    }
+
     internal static GeneratedKeyPair CreateSigningRing(bool crossCertify, bool expired = false)
     {
         var random = new SecureRandom();

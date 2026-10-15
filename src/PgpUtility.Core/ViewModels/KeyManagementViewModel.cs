@@ -114,9 +114,11 @@ public partial class KeyManagementViewModel : ViewModelBase
 
     public void RefreshKeys()
     {
+        var keys = ReadKeys(_keyStoreService);
+        if (keys is null) return;
         string? selected = SelectedKey?.Fingerprint;
         Keys.Clear();
-        foreach (var key in _keyStoreService.GetAllKeys())
+        foreach (var key in keys)
             Keys.Add(key);
         ApplyFilter();
         SelectedKey = Keys.FirstOrDefault(k => k.Fingerprint == selected);

@@ -12,6 +12,10 @@ Direct-key-only certificates, key collections, smartcard operations, designated 
 and automatic trust or key discovery are outside the supported profile. v6 keys, AEAD messages and
 other newer formats are not claimed as supported merely because a dependency can parse them.
 
+Reimport and restore keep existing private packets and their current passphrase protection while
+adding new subkeys and public certifications. Only Change passphrase replaces protection of an
+existing private packet. Restore into an empty store to recover access using an older backup passphrase.
+
 New encryption and signing require an unrevoked, unexpired authorized key. Expired or revoked
 private keys can still decrypt historical messages. Historical signatures can be mathematically
 good while carrying an expiry or revocation warning. This app does not reconstruct the entire

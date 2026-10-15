@@ -30,7 +30,7 @@
       <Border Classes="panel" IsVisible="{Binding IsRestoreConfirmationVisible}">
         <StackPanel Spacing="8" IsEnabled="{Binding !IsBusy}">
           <TextBlock Text="Restore a PGP Utility backup" Classes="sectionHeader" />
-          <TextBlock Classes="hint" Text="Restore merges identities and keeps known revocations. Other keys stay in your store. Afterwards, decrypt an older message to check that your private key and passphrase work." />
+          <TextBlock Classes="hint" Text="Restore merges identities and keeps known revocations. Existing private-key protection stays unchanged. To use an older backup passphrase, restore into an empty store. Afterwards, decrypt an older message to check access." />
           <WrapPanel>
             <Button Content="Choose backup..." Command="{Binding ConfirmRestoreCommand}" Margin="0,0,8,0" />
             <Button Content="Cancel" Command="{Binding CancelBackupCommand}" />

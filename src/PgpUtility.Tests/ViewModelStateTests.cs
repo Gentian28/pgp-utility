@@ -158,6 +158,62 @@ public class ViewModelStateTests(GeneratedKeys keys)
 
     private static SignatureVerification Good() => SignatureVerification.Valid("good", "synthetic", "Test", DateTime.UtcNow);
 
+    [Fact]
+    public async Task Losing_access_to_the_store_reports_refresh_failure_without_erasing_lists_or_leaving_verdicts()
+    {
+        using var work = new TempWorkspace();
+        var store = await Store(work);
+        var text = new TextViewModel(keys.Service, keys.Signatures, store, new Clipboard(), _ => { });
+        var signatures = new SignVerifyViewModel(keys.Signatures, store, new Picker(), _ => { });
+        var files = new EncryptDecryptViewModel(keys.Service, store, new Picker(), _ => { });
+        var manager = new KeyManagementViewModel(store, keys.Service, new Picker(), new Clipboard(), _ => { });
+        text.Result = Good();
+        signatures.Result = Good();
+        Directory.Move(store.Directory, work.Path("moved-store"));
+        try
+        {
+            File.WriteAllText(store.Directory, "synthetic inaccessible directory");
+            text.RefreshKeys();
+            signatures.RefreshKeys();
+            files.RefreshKeys();
+            manager.RefreshKeys();
+            foreach (var vm in new ViewModelBase[] { text, signatures, files, manager })
+                vm.StatusMessage.Should().Contain("Keys could not be refreshed");
+            text.Result.Should().BeNull();
+            signatures.Result.Should().BeNull();
+            text.AvailableKeys.Should().ContainSingle();
+            signatures.AvailableKeys.Should().ContainSingle();
+            files.AvailableKeys.Should().ContainSingle();
+            manager.Keys.Should().ContainSingle();
+        }
+        finally
+        {
+            File.Delete(store.Directory);
+            Directory.Move(work.Path("moved-store"), store.Directory);
+        }
+        text.RefreshKeys();
+        text.AvailableKeys.Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task Refreshing_a_revoked_selected_key_clears_verdicts_even_when_its_identity_is_unchanged()
+    {
+        using var work = new TempWorkspace();
+        var store = await Store(work);
+        string id = store.GetAllKeys().Single().KeyId;
+        var text = new TextViewModel(keys.Service, keys.Signatures, store, new Clipboard(), _ => { })
+        { SelectedAction = TextViewModel.TextAction.Verify, SelectedKeyId = id, Result = Good() };
+        var signatures = new SignVerifyViewModel(keys.Signatures, store, new Picker(), _ => { })
+        { IsSignMode = false, SelectedKeyId = id, Result = Good() };
+        await store.ApplyRevocationAsync(id, keys.Ed25519.RevocationCertificate);
+        text.RefreshKeys();
+        signatures.RefreshKeys();
+        text.SelectedKeyId.Should().Be(id);
+        signatures.SelectedKeyId.Should().Be(id);
+        text.Result.Should().BeNull();
+        signatures.Result.Should().BeNull();
+    }
+
     private sealed class Clipboard : IClipboardService
     {
         public bool Fail { get; init; }

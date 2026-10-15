@@ -84,6 +84,11 @@ internal sealed class PgpKeyValidation
             if (!_keys.TryAdd(key.KeyId, (key, binding)))
                 throw new PgpException("This key contains ambiguous duplicate key IDs.");
         }
+        // Validate revocation semantics while the complete certificate is still being loaded,
+        // so unsupported requirements cannot survive import or crash a later metadata refresh.
+        _ = IsRevoked;
+        foreach (var key in ring.GetPublicKeys().Where(k => !k.IsMasterKey))
+            _ = HasRevocation(key, PgpSignature.SubkeyRevocation);
     }
 
     public PgpPublicKey EncryptionKey() => _keys.Values
@@ -192,11 +197,13 @@ internal sealed class PgpKeyValidation
     private static bool Check(PgpSignature signature, PgpPublicKey issuer, Func<bool> verify)
     {
         if (signature.CreationTime > DateTime.UtcNow || signature.CreationTime < issuer.CreationTime) return false;
-        var critical = signature.GetHashedSubPackets()?.GetCriticalTags() ?? [];
-        // Reject critical semantics this validator does not implement, notably critical notation.
-        if (critical.Any(tag => (int)tag is not (2 or 3 or 9 or 11 or 16 or 21 or 22 or 25 or 27 or 29 or 30 or 32 or 33)))
-            return false;
-        try { signature.InitVerify(issuer); return verify(); }
+        try { signature.InitVerify(issuer); if (!verify()) return false; }
         catch (PgpException) { return false; }
+        var critical = signature.GetHashedSubPackets()?.GetCriticalTags() ?? [];
+        // A valid but unsupported requirement is a failure of the complete certificate.
+        // Ignoring it would silently fall back to an older, less restrictive certification.
+        if (critical.Any(tag => (int)tag is not (2 or 3 or 9 or 11 or 16 or 21 or 22 or 25 or 27 or 29 or 30 or 32 or 33)))
+            throw new PgpException("This certificate has authenticated critical requirements this app cannot interpret. Use a specialist tool to inspect it.");
+        return true;
     }
 }

@@ -9,6 +9,8 @@ public sealed class KeyLifecycleService
 {
     public string ApplyRevocation(string publicKey, string certificate)
     {
+        CryptoInputLimits.CheckText(publicKey);
+        CryptoInputLimits.CheckText(certificate);
         using var source = new MemoryStream(Encoding.UTF8.GetBytes(publicKey));
         var ring = PgpKeyValidation.ReadPublic(source);
         var identity = new PgpKeyValidation(ring);
@@ -70,7 +72,13 @@ public sealed class KeyLifecycleService
                 {
                     var generator = new PgpSignatureGenerator(updated.Algorithm, HashAlgorithmTag.Sha256);
                     generator.InitSign(PgpSignature.SubkeyBinding, signingKey);
-                    generator.SetHashedSubpackets(RenewPackets(identity.CertificationFor(key), key.CreationTime, expiry));
+                    var previous = identity.CertificationFor(key);
+                    generator.SetHashedSubpackets(RenewPackets(previous, key.CreationTime, expiry));
+                    // Older tools store the independently verified cross-signature unhashed.
+                    // Keep it when issuing the replacement binding, without copying other hints.
+                    var embedded = previous.GetUnhashedSubPackets()?.ToArray()
+                        .Where(p => p.SubpacketType == SignatureSubpacketTag.EmbeddedSignature).ToArray() ?? [];
+                    generator.SetUnhashedSubpackets(PgpSignatureSubpacketVector.FromSubpackets(embedded));
                     var renewed = PgpPublicKey.AddCertification(key, generator.GenerateCertification(updated, key));
                     publicRing = PgpPublicKeyRing.InsertPublicKey(publicRing, renewed);
                 }

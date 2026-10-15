@@ -97,13 +97,16 @@ public partial class TextViewModel : ViewModelBase
     public void RefreshKeys()
     {
         if (IsBusy) return;
+        var keys = ReadKeys(_keyStoreService, Invalidate);
+        if (keys is null) return;
         string? selected = SelectedKeyId;
+        var before = AvailableKeys.FirstOrDefault(k => k.KeyId == selected);
         AvailableKeys.Clear();
 
         // Decrypt and sign need a secret key. Encrypt and verify work with anyone's public one.
         bool secretRequired = NeedsPassphrase;
 
-        foreach (var key in _keyStoreService.GetAllKeys())
+        foreach (var key in keys)
         {
             if ((!secretRequired || key.HasPrivateKey) &&
                 (SelectedAction != TextAction.Encrypt || key.CanEncrypt) &&
@@ -111,6 +114,7 @@ public partial class TextViewModel : ViewModelBase
                 AvailableKeys.Add(key);
         }
         SelectedKeyId = AvailableKeys.Any(k => k.KeyId == selected) ? selected : null;
+        if (!SameKeyState(before, AvailableKeys.FirstOrDefault(k => k.KeyId == SelectedKeyId))) Invalidate();
     }
 
     private bool CanRun() =>

@@ -83,17 +83,21 @@ public partial class SignVerifyViewModel : ViewModelBase
     public void RefreshKeys()
     {
         if (IsBusy) return;
+        var keys = ReadKeys(_keyStoreService, Invalidate);
+        if (keys is null) return;
         string? selected = SelectedKeyId;
+        var before = AvailableKeys.FirstOrDefault(k => k.KeyId == selected);
         AvailableKeys.Clear();
 
         // Signing needs a secret key; verifying only needs the signer's public one. Offering keys
         // that cannot do the job just produces a confusing failure later.
-        foreach (var key in _keyStoreService.GetAllKeys())
+        foreach (var key in keys)
         {
             if (!IsSignMode || (key.HasPrivateKey && key.CanSign))
                 AvailableKeys.Add(key);
         }
         SelectedKeyId = AvailableKeys.Any(k => k.KeyId == selected) ? selected : null;
+        if (!SameKeyState(before, AvailableKeys.FirstOrDefault(k => k.KeyId == SelectedKeyId))) Invalidate();
     }
 
     [RelayCommand]

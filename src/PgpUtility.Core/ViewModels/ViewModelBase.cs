@@ -1,10 +1,28 @@
 using CommunityToolkit.Mvvm.ComponentModel;
+using PgpUtility.Models;
+using PgpUtility.Services;
 
 namespace PgpUtility.ViewModels;
 
 public partial class ViewModelBase : ObservableObject
 {
     protected Action<string>? ReportFailure { get; set; }
+
+    protected IReadOnlyList<PgpKeyInfo>? ReadKeys(IKeyStoreService store, Action? invalidate = null)
+    {
+        try { return store.GetAllKeys(); }
+        catch (Exception ex)
+        {
+            invalidate?.Invoke();
+            StatusMessage = $"Keys could not be refreshed: {ex.Message}";
+            ReportFailure?.Invoke(StatusMessage);
+            return null;
+        }
+    }
+
+    protected static bool SameKeyState(PgpKeyInfo? before, PgpKeyInfo? after) =>
+        (before?.Fingerprint, before?.ExpirationDate, before?.IsRevoked, before?.HasPrivateKey, before?.CanEncrypt, before?.CanSign) ==
+        (after?.Fingerprint, after?.ExpirationDate, after?.IsRevoked, after?.HasPrivateKey, after?.CanEncrypt, after?.CanSign);
 
     protected async Task GuardAsync(Func<Task> action)
     {
