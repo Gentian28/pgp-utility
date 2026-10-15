@@ -170,27 +170,18 @@ public class GnuPgInteropTests
         string cipher = work.Path("cipher.pgp");
         await _keys.Service.EncryptFileAsync(plain, cipher, _keys.Ed25519Public, isFilePath: false, armor: false);
 
-        // mdc_method appears only on a tag 18 integrity protected packet, so its presence is gpg
-        // confirming the integrity check is really there rather than us asserting our own output.
-        //
-        // The loopback arguments are not decoration. The secret key is already imported, so
-        // --list-packets tries to decrypt the message to list what is inside, and without them
-        // the agent raises a pinentry dialog. On a headless runner that prompt fails fast and
-        // the assertion below still passes; on a developer's desktop the dialog sits there and
-        // the suite hangs until someone cancels it.
-        GnuPgRunner.Result packets = gpg.Run(
-            "--pinentry-mode", "loopback", "--passphrase", GeneratedKeys.PassphraseText,
-            "--list-packets", cipher);
-        packets.StandardOutput.Should().Contain("mdc_method");
-
-        // gpg names the session cipher on stderr while decrypting.
+        // Use GnuPG's machine-readable status. Human packet labels vary across versions.
+        // Loopback avoids an interactive pinentry prompt when the imported secret key is unlocked.
+        string output = work.Path("out.bin");
         GnuPgRunner.Result decrypted = gpg.Run(
             "--pinentry-mode", "loopback", "--passphrase", GeneratedKeys.PassphraseText,
-            "--status-fd", "1", "--output", work.Path("out.bin"), "--decrypt", cipher);
+            "--status-fd", "1", "--output", output, "--decrypt", cipher);
 
         decrypted.Ok.Should().BeTrue(decrypted.StandardError);
-        // DECRYPTION_INFO <mdc_method> <sym_algo>. Symmetric algorithm 9 is AES-256.
-        decrypted.All.Should().MatchRegex(@"DECRYPTION_INFO \d+ 9\b");
+        // DECRYPTION_INFO <mdc_method> <sym_algo>: method 2 is SHA-1 MDC, algorithm 9 is AES-256.
+        decrypted.StandardOutput.Should().MatchRegex(@"(?m)^\[GNUPG:\] DECRYPTION_INFO 2 9\b");
+        decrypted.StandardOutput.Should().MatchRegex(@"(?m)^\[GNUPG:\] DECRYPTION_OKAY\s*$");
+        File.ReadAllBytes(output).Should().Equal(File.ReadAllBytes(plain));
     }
 
     [SkippableFact]
