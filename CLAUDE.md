@@ -150,11 +150,11 @@ are ZIP archives of existing protected key packets and revocation material, with
 
 ## Screenshots
 
-Synthetic mouse clicks do not reach Avalonia on this setup. Drive the UI through UI Automation
-(`SelectionItemPattern`) instead, capture with `DwmGetWindowAttribute` extended frame bounds rather
-than `GetWindowRect` (which includes the invisible border and captures whatever is behind), and
-point `PGPUTILITY_KEY_STORE` at a seeded scratch store so the shots show a populated app without
-touching a real one. Screenshot identities are synthetic.
+Use the sanctioned Windows Computer Use plugin for application input and capture. Select and
+activate the exact returned PGP Utility window before capturing it. Point `PGPUTILITY_KEY_STORE`
+at a seeded scratch store so inspection never touches real keys. Keep screenshot identities and
+messages synthetic. Copy reviewed screenshots without modification and record capture source/state
+in `docs/screenshots/captures.json`. Native package acceptance remains a separate check.
 
 ## Repo notes
 

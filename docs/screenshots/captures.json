@@ -1,0 +1,118 @@
+{
+  "capture_date": "2026-10-15",
+  "content": "Synthetic keys and messages only.",
+  "release_source_commit": "45d1b61c8ca0f0d19fe3f132a99e155e0f2fcaf1",
+  "coverage_note": "Normal captures use App/Core source unchanged in 1.2.0. Minimum-size captures predate accessibility-only input substitution; the protected controls retain the TextBox style and dimensions. See each capture source commit and state.",
+  "captures": [
+    {
+      "file": "01-files.png",
+      "sha256": "8e6b7d12f75d0a21f1b274650c9261c5bd8d985e84b5fa4d4f190d6a3dd5497c",
+      "capture_source_commit": "a42d9d369b28e9e3ac178a17770d979f10f1fe20",
+      "theme": "Light",
+      "state": "Files",
+      "startup_size": {
+        "width": 960,
+        "height": 720
+      }
+    },
+    {
+      "file": "02-text.png",
+      "sha256": "58e341d9caa170181a0aab114c837c7cfbe78d61619000117251114529789f70",
+      "capture_source_commit": "a42d9d369b28e9e3ac178a17770d979f10f1fe20",
+      "theme": "Light",
+      "state": "Text",
+      "startup_size": {
+        "width": 960,
+        "height": 720
+      }
+    },
+    {
+      "file": "03-sign-verify.png",
+      "sha256": "efc1ae71b9c551ad0bf1a772a54774e3a4ca4e083379a12490bc1f0ee63e7467",
+      "capture_source_commit": "a42d9d369b28e9e3ac178a17770d979f10f1fe20",
+      "theme": "Light",
+      "state": "Sign / Verify, Verify selected",
+      "startup_size": {
+        "width": 960,
+        "height": 720
+      }
+    },
+    {
+      "file": "04-keys.png",
+      "sha256": "35add922eca109b4aa9d7af330935d71f5e186c9262a0e1e4ceefe74703cfb69",
+      "capture_source_commit": "a42d9d369b28e9e3ac178a17770d979f10f1fe20",
+      "theme": "Light",
+      "state": "Keys, selected synthetic identity",
+      "startup_size": {
+        "width": 960,
+        "height": 720
+      }
+    },
+    {
+      "file": "05-generate.png",
+      "sha256": "3fa7e2cca5e6d429708a04a0c99482143a1496bbf83ecbeeee5e9cb877640e04",
+      "capture_source_commit": "a42d9d369b28e9e3ac178a17770d979f10f1fe20",
+      "theme": "Light",
+      "state": "Generate, synthetic identity",
+      "startup_size": {
+        "width": 960,
+        "height": 720
+      }
+    },
+    {
+      "file": "narrow/01-files.png",
+      "sha256": "a2e1838a75c37d0ab846182345b45b083181f43e922e494d61e9749929c37d8c",
+      "capture_source_commit": "d94c035968ffe77503188530702c8b2748d83aa9",
+      "theme": "Dark",
+      "state": "Files, top of scrollable content",
+      "startup_size": {
+        "width": 480,
+        "height": 400
+      }
+    },
+    {
+      "file": "narrow/02-text.png",
+      "sha256": "991e6d4428c29ff7de9c847e2cb035f3e215eeef9d3604cf00d5bac3ececa0d5",
+      "capture_source_commit": "d94c035968ffe77503188530702c8b2748d83aa9",
+      "theme": "Dark",
+      "state": "Text, unable-to-check verdict",
+      "startup_size": {
+        "width": 480,
+        "height": 400
+      }
+    },
+    {
+      "file": "narrow/03-sign-verify.png",
+      "sha256": "c9ea6d4eac91899bc1ebf0f8bfb43658407fb5b6a18db4fc16155c8866947e1c",
+      "capture_source_commit": "d94c035968ffe77503188530702c8b2748d83aa9",
+      "theme": "Dark",
+      "state": "Sign / Verify, Sign selected, scrolled",
+      "startup_size": {
+        "width": 480,
+        "height": 400
+      }
+    },
+    {
+      "file": "narrow/04-keys.png",
+      "sha256": "80f25200c148ff8586c9de127d1079ede2d7f9f0e74359a2d4b7f3c53c1a156e",
+      "capture_source_commit": "d94c035968ffe77503188530702c8b2748d83aa9",
+      "theme": "Dark",
+      "state": "Keys, stacked detail, scrolled",
+      "startup_size": {
+        "width": 480,
+        "height": 400
+      }
+    },
+    {
+      "file": "narrow/05-generate.png",
+      "sha256": "209b08920b514cca4a83a9ea0f12ee323d6a521c37a9d5d9fd728b61ae5c8487",
+      "capture_source_commit": "d94c035968ffe77503188530702c8b2748d83aa9",
+      "theme": "Dark",
+      "state": "Generate, top of scrollable content",
+      "startup_size": {
+        "width": 480,
+        "height": 400
+      }
+    }
+  ]
+}

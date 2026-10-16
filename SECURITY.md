@@ -21,6 +21,13 @@ What does exist:
 
 Tests catch the mistakes someone thought to test for. They are not an audit.
 
+## Published advisories
+
+[Published security advisories](https://github.com/Gentian28/pgp-utility/security/advisories)
+identify affected releases, patched versions and remediation. Use the current corrected release
+and follow the [download verification guide](docs/release-verification.md). These notices and
+automated checks do not replace an independent audit.
+
 ## Reporting a vulnerability
 
 **Please do not open a public issue for a security problem.**

@@ -41,8 +41,8 @@ jobs:
           fi
           remote=$(git ls-remote --tags origin "refs/tags/v$ver" "refs/tags/v$ver^{}")
           if [ -n "$remote" ]; then
-            # Checkout can create a lightweight local copy of an annotated tag. Fetch without
-            # replacing that ref, then peel the remote object to its source commit.
+            # Checkout can create a lightweight local copy of an annotated tag. Fetch the
+            # remote tag to FETCH_HEAD and peel it for the source comparison.
             git fetch --no-tags origin "refs/tags/v$ver"
             if [ "$(git rev-parse 'FETCH_HEAD^{commit}')" != "$GITHUB_SHA" ]; then
               echo "::error::the version tag points to a different commit"
