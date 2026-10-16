@@ -9,9 +9,9 @@
   </ItemGroup>
 
   <ItemGroup Label="UI">
-    <PackageVersion Include="Avalonia" Version="11.3.14" />
+    <PackageVersion Include="Avalonia" Version="11.3.22" />
     <PackageVersion Include="Avalonia.Desktop" Version="11.3.14" />
-    <PackageVersion Include="Avalonia.Diagnostics" Version="11.3.14" />
+    <PackageVersion Include="Avalonia.Diagnostics" Version="11.3.22" />
     <PackageVersion Include="Avalonia.Fonts.Inter" Version="11.3.14" />
     <PackageVersion Include="CommunityToolkit.Mvvm" Version="8.4.0" />
     <!-- Base theme. Supplies the elevation, control themes and type scale that would otherwise be
