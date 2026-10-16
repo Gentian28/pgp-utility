@@ -9,8 +9,8 @@
   </ItemGroup>
 
   <ItemGroup Label="UI">
-    <PackageVersion Include="Avalonia" Version="11.3.14" />
-    <PackageVersion Include="Avalonia.Desktop" Version="11.3.14" />
+    <PackageVersion Include="Avalonia" Version="12.1.4" />
+    <PackageVersion Include="Avalonia.Desktop" Version="12.1.4" />
     <PackageVersion Include="Avalonia.Diagnostics" Version="11.3.14" />
     <PackageVersion Include="Avalonia.Fonts.Inter" Version="11.3.14" />
     <PackageVersion Include="CommunityToolkit.Mvvm" Version="8.4.0" />
