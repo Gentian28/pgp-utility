@@ -28,6 +28,9 @@ release assets, hashes and attestations. Exercise installer and portable startup
 including existing-store migration and a backup restore. Check keyboard access, light and dark themes,
 and each tab at a narrow window size against the approved design. Do not equate a ten-second startup
 check with an end-to-end installer or UI test.
+Each release packaging job also validates its actual installer and portable files before
+attestation and upload. The included `acceptance-<rid>.json` summarizes the synthetic upgrade
+and recovery checks; its checksum is covered by the platform manifest.
 The candidate startup check requires a `PGPUTILITY_STARTUP_READY_FILE` signal from the main window's
 Opened event; a live but deadlocked process fails. Only the published 1.1.0 baseline, which predates
 that signal, uses an explicitly labeled legacy process-liveness check during upgrade acceptance.

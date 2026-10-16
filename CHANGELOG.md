@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.2.0 (unreleased)
+## 1.2.0
 
 - Validate key identities, subkey ownership and lifecycle state before new cryptographic operations.
 - Preserve existing files and use private, unique staging files for all outputs and exports.

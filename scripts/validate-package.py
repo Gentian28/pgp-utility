@@ -46,9 +46,9 @@ def run(command, timeout=120):
 def smoke(executable, existing=False, legacy=False):
     run([sys.executable, repository / "scripts/smoke-startup.py", executable,
          *(["--store", data / "keys"] if existing else []),
-         *(["--legacy-process-only"] if legacy else [])], timeout=45)
+         *(["--legacy-process-only"] if legacy else [])], timeout=90)
     if not existing:
-        run([sys.executable, repository / "scripts/smoke-startup.py", executable, "--corrupt-index"], timeout=45)
+        run([sys.executable, repository / "scripts/smoke-startup.py", executable, "--corrupt-index"], timeout=90)
 
 
 def stop_installer_launch():

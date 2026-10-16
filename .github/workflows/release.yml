@@ -49,6 +49,12 @@ jobs:
           fi
       - name: Install GnuPG
         run: sudo apt-get update && sudo apt-get install -y gnupg
+      - name: Keep GnuPG agent sockets below the OS path limit
+        run: |
+          mkdir -p /tmp/pgputility-test-temp
+          echo 'TEMP=/tmp/pgputility-test-temp' >> "$GITHUB_ENV"
+          echo 'TMP=/tmp/pgputility-test-temp' >> "$GITHUB_ENV"
+          echo 'TMPDIR=/tmp/pgputility-test-temp' >> "$GITHUB_ENV"
       - name: Dependency security gate
         shell: pwsh
         run: ./scripts/check-vulnerabilities.ps1
@@ -195,14 +201,32 @@ jobs:
       # plus the -full.nupkg and the RELEASES / releases.<channel>.json feed that powers delta
       # updates. Adding our own zip would ship two near-identically named portable downloads.
 
-      - name: Checksums
+      - name: Build synthetic migration and recovery fixture
+        run: dotnet build scripts/AcceptanceFixtures -c Release -o acceptance-fixture -warnaserror
+
+      - name: Validate the actual release installers and portable packages
         shell: bash
         run: |
-          cd artifacts
-          # Checksums detect corrupt downloads; the following attestation binds them to this build.
-          sha256sum * > "SHA256SUMS-${{ matrix.channel }}.txt" 2>/dev/null \
-            || shasum -a 256 * > "SHA256SUMS-${{ matrix.channel }}.txt"
-          cat "SHA256SUMS-${{ matrix.channel }}.txt"
+          display=()
+          if [ '${{ runner.os }}' = Linux ]; then display=(xvfb-run -a); fi
+          "${display[@]}" python scripts/validate-package.py --artifacts artifacts --rid '${{ matrix.rid }}' \
+            --fixture acceptance-fixture/AcceptanceFixtures.dll --version '${{ steps.v.outputs.version }}'
+
+      - name: Checksums including the acceptance report
+        shell: bash
+        run: |
+          python - <<'PY'
+          import hashlib
+          from pathlib import Path
+          root = Path('artifacts')
+          lines = []
+          for path in sorted(root.iterdir()):
+              if path.is_file() and not path.name.startswith('SHA256SUMS'):
+                  with path.open('rb') as source:
+                      lines.append(f"{hashlib.file_digest(source, 'sha256').hexdigest()}  {path.name}")
+          (root / 'SHA256SUMS-${{ matrix.channel }}.txt').write_text('\n'.join(lines) + '\n', encoding='utf-8')
+          print('\n'.join(lines))
+          PY
 
       - name: Attest release artifacts
         uses: actions/attest-build-provenance@43d14bc2b83dec42d39ecae14e916627a18bb661 # v3
