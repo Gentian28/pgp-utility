@@ -42,7 +42,14 @@ jobs:
       # OS, the passing legs are the useful half of the signal.
       fail-fast: false
       matrix:
-        os: [windows-latest, ubuntu-latest, macos-latest]
+        # Ubuntu stays on 24.04 because the libgcrypt 1.12.0 in 26.04 reads past the end of a
+        # buffer in its Curve25519 self-test: ec_mod in mpi/ec.c widens nlimbs to the field size
+        # without resizing. Whatever sits on the heap there decides whether gpg-agent accepts a
+        # batch-imported Curve25519 key, and when it does not it reports "Bad passphrase". It is
+        # not our keys: one GnuPG generated itself fails the same way after nothing but being
+        # re-protected. Move to ubuntu-latest once its libgcrypt is fixed, in release.yml and
+        # acceptance.yml too.
+        os: [windows-latest, ubuntu-24.04, macos-latest]
 
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4

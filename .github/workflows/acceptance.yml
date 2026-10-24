@@ -16,7 +16,8 @@ jobs:
       matrix:
         include:
           - { os: windows-latest, rid: win-x64, channel: win, exe: PgpUtility.App.exe }
-          - { os: ubuntu-latest, rid: linux-x64, channel: linux, exe: PgpUtility.App }
+          # Not ubuntu-latest: the GnuPG comparisons fail there for a libgcrypt defect. See ci.yml.
+          - { os: ubuntu-24.04, rid: linux-x64, channel: linux, exe: PgpUtility.App }
           - { os: macos-latest, rid: osx-arm64, channel: osx, exe: PgpUtility.App }
           - { os: macos-15-intel, rid: osx-x64, channel: osx-x64, exe: PgpUtility.App }
     steps:

@@ -20,7 +20,8 @@ permissions:
 jobs:
   test:
     name: verify the exact release commit
-    runs-on: ubuntu-latest
+    # Not ubuntu-latest: the GnuPG comparisons fail there for a libgcrypt defect. See ci.yml.
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     permissions:
       contents: read
