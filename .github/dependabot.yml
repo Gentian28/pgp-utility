@@ -1,12 +1,20 @@
 version: 2
 updates:
+  # One pull request per ecosystem per week. Separate PRs each ran the full CI matrix, three
+  # macOS jobs included, for updates that are reviewed and merged together anyway.
   - package-ecosystem: nuget
     directory: /
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    groups:
+      nuget:
+        patterns: ["*"]
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    groups:
+      github-actions:
+        patterns: ["*"]
