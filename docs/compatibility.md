@@ -5,6 +5,14 @@ or a combined RSA key at 2048 or 4096 bits. New message encryption uses AES-256,
 an integrity packet. New signatures use SHA-256. Keys, signatures and ciphertext are compared with
 GnuPG in the test suite; this is interoperability evidence, not an independent security audit.
 
+GnuPG linked against libgcrypt 1.12.0, the version Ubuntu 26.04 ships, can refuse a Curve25519
+secret key with "Bad passphrase" when the passphrase is correct. A self-test in that libgcrypt
+reads past the end of a buffer, so the outcome depends on memory contents; libgcrypt 1.12.1 fixed
+it (upstream T8080). It appears on the first decryption or export after `gpg --batch --import`,
+and is not specific to keys from this app. Importing without `--batch`, so that gpg asks for the
+passphrase during the import, avoided it in testing. The GnuPG comparisons in CI run on Ubuntu
+24.04 until 26.04 has the fix.
+
 Import one identity per file. Binary and armored public or secret exports are supported. A named
 identity needs a valid primary self-certification, and every subkey needs a valid binding. Signing
 subkeys also need cross-certification. Critical requirements the app cannot interpret are rejected.
