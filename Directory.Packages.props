@@ -29,7 +29,7 @@
   </ItemGroup>
 
   <ItemGroup Label="Testing">
-    <PackageVersion Include="coverlet.collector" Version="6.0.4" />
+    <PackageVersion Include="coverlet.collector" Version="10.1.0" />
     <!-- The MIT-community fork of FluentAssertions, under Apache-2.0. FluentAssertions 8.x moved
          to a licence that is not OSI-approved and permits Non-Commercial Use only, which would
          stop anyone forking this MIT project for commercial work from running its tests. -->
