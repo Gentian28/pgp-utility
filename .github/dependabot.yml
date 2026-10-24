@@ -1,7 +1,9 @@
 version: 2
 updates:
-  # One pull request per ecosystem per week. Separate PRs each ran the full CI matrix, three
-  # macOS jobs included, for updates that are reviewed and merged together anyway.
+  # One pull request per ecosystem per week for minor and patch updates. Separate PRs each ran
+  # the full CI matrix, three macOS jobs included, for updates that are reviewed and merged
+  # together anyway. Major versions stay one PR each: they need code changes, and grouped in,
+  # one of them holds every routine bump hostage.
   - package-ecosystem: nuget
     directory: /
     schedule:
@@ -10,6 +12,7 @@ updates:
     groups:
       nuget:
         patterns: ["*"]
+        update-types: ["minor", "patch"]
   - package-ecosystem: github-actions
     directory: /
     schedule:
@@ -18,3 +21,4 @@ updates:
     groups:
       github-actions:
         patterns: ["*"]
+        update-types: ["minor", "patch"]
