@@ -34,7 +34,7 @@
          to a licence that is not OSI-approved and permits Non-Commercial Use only, which would
          stop anyone forking this MIT project for commercial work from running its tests. -->
     <PackageVersion Include="AwesomeAssertions" Version="9.5.0" />
-    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.11.0" />
     <PackageVersion Include="xunit" Version="2.9.3" />
     <!-- Lets the GnuPG interoperability tests skip rather than fail on a machine with no gpg on
          PATH. A test that cannot run and a test that failed are different results. -->
