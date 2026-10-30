@@ -5,27 +5,27 @@
   </PropertyGroup>
 
   <ItemGroup Label="Crypto">
-    <PackageVersion Include="BouncyCastle.Cryptography" Version="2.6.2" />
+    <PackageVersion Include="BouncyCastle.Cryptography" Version="2.7.0" />
   </ItemGroup>
 
   <ItemGroup Label="UI">
-    <PackageVersion Include="Avalonia" Version="11.3.14" />
-    <PackageVersion Include="Avalonia.Desktop" Version="11.3.14" />
-    <PackageVersion Include="Avalonia.Diagnostics" Version="11.3.14" />
-    <PackageVersion Include="Avalonia.Fonts.Inter" Version="11.3.14" />
-    <PackageVersion Include="CommunityToolkit.Mvvm" Version="8.4.0" />
+    <PackageVersion Include="Avalonia" Version="11.3.22" />
+    <PackageVersion Include="Avalonia.Desktop" Version="11.3.22" />
+    <PackageVersion Include="Avalonia.Diagnostics" Version="11.3.22" />
+    <PackageVersion Include="Avalonia.Fonts.Inter" Version="11.3.22" />
+    <PackageVersion Include="CommunityToolkit.Mvvm" Version="8.4.2" />
     <!-- Base theme. Supplies the elevation, control themes and type scale that would otherwise be
          hand-rolled on stock Fluent; the tokens in Styles/ override it rather than replace it. -->
-    <PackageVersion Include="Semi.Avalonia" Version="11.3.14" />
+    <PackageVersion Include="Semi.Avalonia" Version="11.3.22" />
     <!-- Pinned directly: Avalonia.Desktop pulls in 0.21.2 transitively (the Linux D-Bus
          transport), which carries GHSA-xrw6-gwf8-vvr9. 0.21.3 is the patch for that line, and the
          vulnerable-packages CI job fails the build without this. -->
-    <PackageVersion Include="Tmds.DBus.Protocol" Version="0.21.3" />
+    <PackageVersion Include="Tmds.DBus.Protocol" Version="0.95.2" />
   </ItemGroup>
 
   <ItemGroup Label="Distribution">
     <!-- Installers and delta updates for Windows, Linux and macOS from one toolchain. MIT. -->
-    <PackageVersion Include="Velopack" Version="1.2.0" />
+    <PackageVersion Include="Velopack" Version="1.2.161" />
   </ItemGroup>
 
   <ItemGroup Label="Testing">
@@ -33,13 +33,13 @@
     <!-- The MIT-community fork of FluentAssertions, under Apache-2.0. FluentAssertions 8.x moved
          to a licence that is not OSI-approved and permits Non-Commercial Use only, which would
          stop anyone forking this MIT project for commercial work from running its tests. -->
-    <PackageVersion Include="AwesomeAssertions" Version="9.5.0" />
+    <PackageVersion Include="AwesomeAssertions" Version="9.6.0" />
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
     <PackageVersion Include="xunit" Version="2.9.3" />
     <!-- Lets the GnuPG interoperability tests skip rather than fail on a machine with no gpg on
          PATH. A test that cannot run and a test that failed are different results. -->
-    <PackageVersion Include="Xunit.SkippableFact" Version="1.5.61" />
-    <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.4" />
+    <PackageVersion Include="Xunit.SkippableFact" Version="1.5.85" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.5" />
   </ItemGroup>
 
 </Project>
